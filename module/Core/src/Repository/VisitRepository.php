@@ -6,7 +6,7 @@ namespace Shlinkio\Shlink\Core\Repository;
 
 use Doctrine\ORM\Query\ResultSetMappingBuilder;
 use Doctrine\ORM\QueryBuilder;
-use Happyr\DoctrineSpecification\EntitySpecificationRepository;
+use Happyr\DoctrineSpecification\Repository\EntitySpecificationRepository;
 use Happyr\DoctrineSpecification\Specification\Specification;
 use Shlinkio\Shlink\Common\Util\DateRange;
 use Shlinkio\Shlink\Core\Entity\ShortUrl;
@@ -203,6 +203,9 @@ class VisitRepository extends EntitySpecificationRepository implements VisitRepo
 
     private function resolveVisitsWithNativeQuery(QueryBuilder $qb, ?int $limit, ?int $offset): array
     {
+        // TODO Order by date and ID, not just by ID (order by date DESC, id DESC).
+        //      That ensures imported visits are properly ordered even if inserted in wrong chronological order.
+
         $qb->select('v.id')
            ->orderBy('v.id', 'DESC')
            // Falling back to values that will behave as no limit/offset, but will workaround MS SQL not allowing

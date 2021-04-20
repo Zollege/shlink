@@ -6,7 +6,7 @@ namespace Shlinkio\Shlink\Core\Repository;
 
 use Doctrine\ORM\Query\Expr\Join;
 use Doctrine\ORM\QueryBuilder;
-use Happyr\DoctrineSpecification\EntitySpecificationRepository;
+use Happyr\DoctrineSpecification\Repository\EntitySpecificationRepository;
 use Happyr\DoctrineSpecification\Specification\Specification;
 use Shlinkio\Shlink\Common\Doctrine\Type\ChronosDateTimeType;
 use Shlinkio\Shlink\Common\Util\DateRange;
@@ -264,12 +264,10 @@ class ShortUrlRepository extends EntitySpecificationRepository implements ShortU
         return $qb->getQuery()->getOneOrNullResult();
     }
 
-    public function importedUrlExists(ImportedShlinkUrl $url): bool
+    public function findOneByImportedUrl(ImportedShlinkUrl $url): ?ShortUrl
     {
-        $qb = $this->getEntityManager()->createQueryBuilder();
-        $qb->select('COUNT(DISTINCT s.id)')
-           ->from(ShortUrl::class, 's')
-           ->andWhere($qb->expr()->eq('s.importOriginalShortCode', ':shortCode'))
+        $qb = $this->createQueryBuilder('s');
+        $qb->andWhere($qb->expr()->eq('s.importOriginalShortCode', ':shortCode'))
            ->setParameter('shortCode', $url->shortCode())
            ->andWhere($qb->expr()->eq('s.importSource', ':importSource'))
            ->setParameter('importSource', $url->source())
@@ -277,8 +275,7 @@ class ShortUrlRepository extends EntitySpecificationRepository implements ShortU
 
         $this->whereDomainIs($qb, $url->domain());
 
-        $result = (int) $qb->getQuery()->getSingleScalarResult();
-        return $result > 0;
+        return $qb->getQuery()->getOneOrNullResult();
     }
 
     private function whereDomainIs(QueryBuilder $qb, ?string $domain): void
