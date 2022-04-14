@@ -76,6 +76,8 @@ WORKDIR /home/shlink
 EXPOSE 8080
 
 CMD \
+    # Enable Heroku Exec
+    bash heroku-exec.sh \
     # Install dependencies if the vendor dir does not exist
     if [[ ! -d "./vendor" ]]; then /usr/local/bin/composer install ; fi && \
     # When restarting the container, openswoole might think it is already in execution

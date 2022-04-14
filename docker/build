@@ -18,7 +18,7 @@ if [[ "$GITHUB_REF" != *"develop"* ]]; then
     ${TAGS} .
 
 # If build branch is develop, build latest
-elif [[ "$GITHUB_REF" == *"develop"* ]]; then
+elif [[ "$GITHUB_REF" == *"zollege"* ]]; then
   docker buildx build --push \
     --platform ${PLATFORMS} \
     -t ${DOCKER_IMAGE}:latest .

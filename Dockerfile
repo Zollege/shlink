@@ -51,6 +51,9 @@ LABEL maintainer="Alejandro Celaya <alejandro@alejandrocelaya.com>"
 COPY --from=builder /etc/shlink .
 RUN ln -s /etc/shlink/bin/cli /usr/local/bin/shlink
 
+# install heroku run bash support
+RUN apk add bash && rm /bin/sh && ln -s /bin/bash /bin/sh
+
 # Expose default openswoole port
 EXPOSE 8080
 
