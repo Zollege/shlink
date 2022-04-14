@@ -8,37 +8,27 @@ use Shlinkio\Shlink\Common\Util\DateRange;
 
 use function Shlinkio\Shlink\Core\parseDateRangeFromQuery;
 
-final class VisitsParams
+final class VisitsParams extends AbstractInfinitePaginableListParams
 {
-    private const FIRST_PAGE = 1;
-    private const ALL_ITEMS = -1;
+    private DateRange $dateRange;
 
-    private ?DateRange $dateRange;
-    private int $page;
-    private int $itemsPerPage;
-
-    public function __construct(?DateRange $dateRange = null, int $page = self::FIRST_PAGE, ?int $itemsPerPage = null)
-    {
-        $this->dateRange = $dateRange ?? new DateRange();
-        $this->page = $page;
-        $this->itemsPerPage = $this->determineItemsPerPage($itemsPerPage);
-    }
-
-    private function determineItemsPerPage(?int $itemsPerPage): int
-    {
-        if ($itemsPerPage !== null && $itemsPerPage < 0) {
-            return self::ALL_ITEMS;
-        }
-
-        return $itemsPerPage ?? self::ALL_ITEMS;
+    public function __construct(
+        ?DateRange $dateRange = null,
+        ?int $page = null,
+        ?int $itemsPerPage = null,
+        private bool $excludeBots = false,
+    ) {
+        parent::__construct($page, $itemsPerPage);
+        $this->dateRange = $dateRange ?? DateRange::emptyInstance();
     }
 
     public static function fromRawData(array $query): self
     {
         return new self(
             parseDateRangeFromQuery($query, 'startDate', 'endDate'),
-            (int) ($query['page'] ?? 1),
+            isset($query['page']) ? (int) $query['page'] : null,
             isset($query['itemsPerPage']) ? (int) $query['itemsPerPage'] : null,
+            isset($query['excludeBots']),
         );
     }
 
@@ -47,13 +37,8 @@ final class VisitsParams
         return $this->dateRange;
     }
 
-    public function getPage(): int
+    public function excludeBots(): bool
     {
-        return $this->page;
-    }
-
-    public function getItemsPerPage(): int
-    {
-        return $this->itemsPerPage;
+        return $this->excludeBots;
     }
 }

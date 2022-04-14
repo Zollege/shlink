@@ -19,7 +19,7 @@ class DeleteShortUrlTest extends ApiTestCase
         string $shortCode,
         ?string $domain,
         string $expectedDetail,
-        string $apiKey
+        string $apiKey,
     ): void {
         $resp = $this->callApiWithKey(self::METHOD_DELETE, $this->buildShortUrlPath($shortCode, $domain), [], $apiKey);
         $payload = $this->getJsonResponsePayload($resp);
@@ -31,25 +31,6 @@ class DeleteShortUrlTest extends ApiTestCase
         self::assertEquals('Short URL not found', $payload['title']);
         self::assertEquals($shortCode, $payload['shortCode']);
         self::assertEquals($domain, $payload['domain'] ?? null);
-    }
-
-    /** @test */
-    public function unprocessableEntityIsReturnedWhenTryingToDeleteUrlWithTooManyVisits(): void
-    {
-        // Generate visits first
-        for ($i = 0; $i < 20; $i++) {
-            self::assertEquals(self::STATUS_FOUND, $this->callShortUrl('abc123')->getStatusCode());
-        }
-        $expectedDetail = 'Impossible to delete short URL with short code "abc123" since it has more than "15" visits.';
-
-        $resp = $this->callApiWithKey(self::METHOD_DELETE, '/short-urls/abc123');
-        $payload = $this->getJsonResponsePayload($resp);
-
-        self::assertEquals(self::STATUS_UNPROCESSABLE_ENTITY, $resp->getStatusCode());
-        self::assertEquals(self::STATUS_UNPROCESSABLE_ENTITY, $payload['status']);
-        self::assertEquals('INVALID_SHORTCODE_DELETION', $payload['type']);
-        self::assertEquals($expectedDetail, $payload['detail']);
-        self::assertEquals('Cannot delete short URL', $payload['title']);
     }
 
     /** @test */

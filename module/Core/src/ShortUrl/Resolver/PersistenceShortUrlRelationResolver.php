@@ -16,16 +16,13 @@ use function Functional\unique;
 
 class PersistenceShortUrlRelationResolver implements ShortUrlRelationResolverInterface
 {
-    private EntityManagerInterface $em;
-
     /** @var array<string, Domain> */
     private array $memoizedNewDomains = [];
     /** @var array<string, Tag> */
     private array $memoizedNewTags = [];
 
-    public function __construct(EntityManagerInterface $em)
+    public function __construct(private EntityManagerInterface $em)
     {
-        $this->em = $em;
         $this->em->getEventManager()->addEventListener(Events::postFlush, $this);
     }
 
@@ -44,7 +41,9 @@ class PersistenceShortUrlRelationResolver implements ShortUrlRelationResolverInt
 
     private function memoizeNewDomain(string $domain): Domain
     {
-        return $this->memoizedNewDomains[$domain] = $this->memoizedNewDomains[$domain] ?? new Domain($domain);
+        return $this->memoizedNewDomains[$domain] = $this->memoizedNewDomains[$domain] ?? Domain::withAuthority(
+            $domain,
+        );
     }
 
     /**
@@ -62,7 +61,7 @@ class PersistenceShortUrlRelationResolver implements ShortUrlRelationResolverInt
 
         return new Collections\ArrayCollection(map($tags, function (string $tagName) use ($repo): Tag {
             // Memoize only new tags, and let doctrine handle objects hydrated from persistence
-            $tag = $repo->findOneBy(['name' => $tagName]) ?? $this->memoizeNewTag($tagName);
+            $tag = $repo->findOneBy(['name' => $tagName])  ?? $this->memoizeNewTag($tagName);
             $this->em->persist($tag);
 
             return $tag;

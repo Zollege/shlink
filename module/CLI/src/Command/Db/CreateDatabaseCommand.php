@@ -21,19 +21,14 @@ class CreateDatabaseCommand extends AbstractDatabaseCommand
     public const DOCTRINE_SCRIPT = 'vendor/doctrine/orm/bin/doctrine.php';
     public const DOCTRINE_CREATE_SCHEMA_COMMAND = 'orm:schema-tool:create';
 
-    private Connection $regularConn;
-    private Connection $noDbNameConn;
-
     public function __construct(
         LockFactory $locker,
         ProcessRunnerInterface $processRunner,
         PhpExecutableFinder $phpFinder,
-        Connection $conn,
-        Connection $noDbNameConn
+        private Connection $regularConn,
+        private Connection $noDbNameConn,
     ) {
         parent::__construct($locker, $processRunner, $phpFinder);
-        $this->regularConn = $conn;
-        $this->noDbNameConn = $noDbNameConn;
     }
 
     protected function configure(): void
@@ -72,11 +67,11 @@ class CreateDatabaseCommand extends AbstractDatabaseCommand
 
         // In order to create the new database, we have to use a connection where the dbname was not set.
         // Otherwise, it will fail to connect and will not be able to create the new database
-        $schemaManager = $this->noDbNameConn->getSchemaManager();
+        $schemaManager = $this->noDbNameConn->createSchemaManager();
         $databases = $schemaManager->listDatabases();
         $shlinkDatabase = $this->regularConn->getDatabase();
 
-        if (! contains($databases, $shlinkDatabase)) {
+        if ($shlinkDatabase !== null && ! contains($databases, $shlinkDatabase)) {
             $schemaManager->createDatabase($shlinkDatabase);
         }
     }
@@ -85,7 +80,7 @@ class CreateDatabaseCommand extends AbstractDatabaseCommand
     {
         // If at least one of the shlink tables exist, we will consider the database exists somehow.
         // Any inconsistency should be taken care by the migrations
-        $schemaManager = $this->regularConn->getSchemaManager();
+        $schemaManager = $this->regularConn->createSchemaManager();
         return ! empty($schemaManager->listTableNames());
     }
 }

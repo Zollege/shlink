@@ -11,7 +11,6 @@ use Shlinkio\Shlink\Common\Paginator\Paginator;
 use Shlinkio\Shlink\Common\Paginator\Util\PagerfantaUtilsTrait;
 use Shlinkio\Shlink\Common\Rest\DataTransformerInterface;
 use Shlinkio\Shlink\Core\Entity\ShortUrl;
-use Shlinkio\Shlink\Core\Model\ShortUrlsOrdering;
 use Shlinkio\Shlink\Core\Model\ShortUrlsParams;
 use Shlinkio\Shlink\Core\Service\ShortUrlServiceInterface;
 use Shlinkio\Shlink\Core\Validation\ShortUrlsParamsInputFilter;
@@ -33,14 +32,11 @@ class ListShortUrlsCommand extends AbstractWithDateRangeCommand
 
     public const NAME = 'short-url:list';
 
-    private ShortUrlServiceInterface $shortUrlService;
-    private DataTransformerInterface $transformer;
-
-    public function __construct(ShortUrlServiceInterface $shortUrlService, DataTransformerInterface $transformer)
-    {
+    public function __construct(
+        private ShortUrlServiceInterface $shortUrlService,
+        private DataTransformerInterface $transformer,
+    ) {
         parent::__construct();
-        $this->shortUrlService = $shortUrlService;
-        $this->transformer = $transformer;
     }
 
     protected function doConfigure(): void
@@ -55,7 +51,7 @@ class ListShortUrlsCommand extends AbstractWithDateRangeCommand
                 'The first page to list (10 items per page unless "--all" is provided).',
                 '1',
             )
-            ->addOptionWithDeprecatedFallback(
+            ->addOption(
                 'search-term',
                 'st',
                 InputOption::VALUE_REQUIRED,
@@ -67,14 +63,20 @@ class ListShortUrlsCommand extends AbstractWithDateRangeCommand
                 InputOption::VALUE_REQUIRED,
                 'A comma-separated list of tags to filter results.',
             )
-            ->addOptionWithDeprecatedFallback(
+            ->addOption(
+                'including-all-tags',
+                'i',
+                InputOption::VALUE_NONE,
+                'If tags is provided, returns only short URLs having ALL tags.',
+            )
+            ->addOption(
                 'order-by',
                 'o',
                 InputOption::VALUE_REQUIRED,
                 'The field from which you want to order by. '
-                    . 'Define ordering dir by passing ASC or DESC after "," or "-".',
+                    . 'Define ordering dir by passing ASC or DESC after "-" or ",".',
             )
-            ->addOptionWithDeprecatedFallback(
+            ->addOption(
                 'show-tags',
                 null,
                 InputOption::VALUE_NONE,
@@ -116,8 +118,11 @@ class ListShortUrlsCommand extends AbstractWithDateRangeCommand
         $io = new SymfonyStyle($input, $output);
 
         $page = (int) $input->getOption('page');
-        $searchTerm = $this->getOptionWithDeprecatedFallback($input, 'search-term');
+        $searchTerm = $input->getOption('search-term');
         $tags = $input->getOption('tags');
+        $tagsMode = $input->getOption('including-all-tags') === true
+            ? ShortUrlsParams::TAGS_MODE_ALL
+            : ShortUrlsParams::TAGS_MODE_ANY;
         $tags = ! empty($tags) ? explode(',', $tags) : [];
         $all = $input->getOption('all');
         $startDate = $this->getStartDateOption($input, $output);
@@ -128,13 +133,14 @@ class ListShortUrlsCommand extends AbstractWithDateRangeCommand
         $data = [
             ShortUrlsParamsInputFilter::SEARCH_TERM => $searchTerm,
             ShortUrlsParamsInputFilter::TAGS => $tags,
-            ShortUrlsOrdering::ORDER_BY => $orderBy,
-            ShortUrlsParamsInputFilter::START_DATE => $startDate !== null ? $startDate->toAtomString() : null,
-            ShortUrlsParamsInputFilter::END_DATE => $endDate !== null ? $endDate->toAtomString() : null,
+            ShortUrlsParamsInputFilter::TAGS_MODE => $tagsMode,
+            ShortUrlsParamsInputFilter::ORDER_BY => $orderBy,
+            ShortUrlsParamsInputFilter::START_DATE => $startDate?->toAtomString(),
+            ShortUrlsParamsInputFilter::END_DATE => $endDate?->toAtomString(),
         ];
 
         if ($all) {
-            $data[ShortUrlsParamsInputFilter::ITEMS_PER_PAGE] = -1;
+            $data[ShortUrlsParamsInputFilter::ITEMS_PER_PAGE] = Paginator::ALL_ITEMS;
         }
 
         do {
@@ -158,7 +164,7 @@ class ListShortUrlsCommand extends AbstractWithDateRangeCommand
         OutputInterface $output,
         array $columnsMap,
         ShortUrlsParams $params,
-        bool $all
+        bool $all,
     ): Paginator {
         $shortUrls = $this->shortUrlService->listShortUrls($params);
 
@@ -167,7 +173,7 @@ class ListShortUrlsCommand extends AbstractWithDateRangeCommand
             return map($columnsMap, fn (callable $call) => $call($rawShortUrl, $shortUrl));
         });
 
-        ShlinkTable::fromOutput($output)->render(
+        ShlinkTable::default($output)->render(
             array_keys($columnsMap),
             $rows,
             $all ? null : $this->formatCurrentPageMessage($shortUrls, 'Page %s of %s'),
@@ -178,7 +184,7 @@ class ListShortUrlsCommand extends AbstractWithDateRangeCommand
 
     private function processOrderBy(InputInterface $input): ?string
     {
-        $orderBy = $this->getOptionWithDeprecatedFallback($input, 'order-by');
+        $orderBy = $input->getOption('order-by');
         if (empty($orderBy)) {
             return null;
         }
@@ -198,19 +204,16 @@ class ListShortUrlsCommand extends AbstractWithDateRangeCommand
             'Date created' => $pickProp('dateCreated'),
             'Visits count' => $pickProp('visitsCount'),
         ];
-        if ($this->getOptionWithDeprecatedFallback($input, 'show-tags')) {
+        if ($input->getOption('show-tags')) {
             $columnsMap['Tags'] = static fn (array $shortUrl): string => implode(', ', $shortUrl['tags']);
         }
         if ($input->getOption('show-api-key')) {
             $columnsMap['API Key'] = static fn (array $_, ShortUrl $shortUrl): string =>
-            (string) $shortUrl->authorApiKey();
+                (string) $shortUrl->authorApiKey();
         }
         if ($input->getOption('show-api-key-name')) {
-            $columnsMap['API Key Name'] = static function (array $_, ShortUrl $shortUrl): ?string {
-                $apiKey = $shortUrl->authorApiKey();
-
-                return $apiKey !== null ? $apiKey->name() : null;
-            };
+            $columnsMap['API Key Name'] = static fn (array $_, ShortUrl $shortUrl): ?string =>
+                $shortUrl->authorApiKey()?->name();
         }
 
         return $columnsMap;

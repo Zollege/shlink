@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkMigrations;
 
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Index;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\SchemaException;
@@ -45,5 +46,10 @@ final class Version20191001201532 extends AbstractMigration
 
         $shortUrls->dropIndex('unique_short_code_plus_domain');
         $shortUrls->addUniqueIndex(['short_code']);
+    }
+
+    public function isTransactional(): bool
+    {
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

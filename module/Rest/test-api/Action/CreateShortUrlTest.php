@@ -230,7 +230,7 @@ class CreateShortUrlTest extends ApiTestCase
     {
         $expectedDetail = sprintf('Provided URL %s is invalid. Try with a different one.', $url);
 
-        [$statusCode, $payload] = $this->createShortUrl(['longUrl' => $url]);
+        [$statusCode, $payload] = $this->createShortUrl(['longUrl' => $url, 'validateUrl' => true]);
 
         self::assertEquals(self::STATUS_BAD_REQUEST, $statusCode);
         self::assertEquals(self::STATUS_BAD_REQUEST, $payload['status']);
@@ -315,11 +315,22 @@ class CreateShortUrlTest extends ApiTestCase
         yield ['https://mobile.twitter.com/shlinkio/status/1360637738421268481'];
     }
 
+    /** @test */
+    public function canCreateShortUrlsWithEmojis(): void
+    {
+        [$statusCode, $payload] = $this->createShortUrl([
+            'longUrl' => 'https://emojipedia.org/fire/',
+            'title' => '🔥🔥🔥',
+            'customSlug' => '🦣🦣🦣',
+        ]);
+        self::assertEquals(self::STATUS_OK, $statusCode);
+        self::assertEquals('🔥🔥🔥', $payload['title']);
+        self::assertEquals('🦣🦣🦣', $payload['shortCode']);
+        self::assertEquals('http://doma.in/🦣🦣🦣', $payload['shortUrl']);
+    }
+
     /**
-     * @return array {
-     *     @var int $statusCode
-     *     @var array $payload
-     * }
+     * @return array{int $statusCode, array $payload}
      */
     private function createShortUrl(array $body = [], string $apiKey = 'valid_api_key'): array
     {

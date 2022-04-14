@@ -28,22 +28,23 @@ return [
         Action\ShortUrl\DeleteShortUrlAction::getRouteDef([$dropDomainMiddleware]),
         Action\ShortUrl\ResolveShortUrlAction::getRouteDef([$dropDomainMiddleware]),
         Action\ShortUrl\ListShortUrlsAction::getRouteDef(),
-        Action\ShortUrl\EditShortUrlTagsAction::getRouteDef([$dropDomainMiddleware]),
 
         // Visits
         Action\Visit\ShortUrlVisitsAction::getRouteDef([$dropDomainMiddleware]),
         Action\Visit\TagVisitsAction::getRouteDef(),
         Action\Visit\GlobalVisitsAction::getRouteDef(),
         Action\Visit\OrphanVisitsAction::getRouteDef(),
+        Action\Visit\NonOrphanVisitsAction::getRouteDef(),
 
         // Tags
         Action\Tag\ListTagsAction::getRouteDef(),
+        Action\Tag\TagsStatsAction::getRouteDef(),
         Action\Tag\DeleteTagsAction::getRouteDef(),
-        Action\Tag\CreateTagsAction::getRouteDef(),
         Action\Tag\UpdateTagAction::getRouteDef(),
 
         // Domains
         Action\Domain\ListDomainsAction::getRouteDef(),
+        Action\Domain\DomainRedirectsAction::getRouteDef(),
 
         Action\MercureInfoAction::getRouteDef(),
     ],

@@ -12,30 +12,21 @@ use Shlinkio\Shlink\Core\Exception\ShortUrlNotFoundException;
 use Shlinkio\Shlink\Core\Model\ShortUrlEdit;
 use Shlinkio\Shlink\Core\Model\ShortUrlIdentifier;
 use Shlinkio\Shlink\Core\Model\ShortUrlsParams;
-use Shlinkio\Shlink\Core\Paginator\Adapter\ShortUrlRepositoryAdapter;
 use Shlinkio\Shlink\Core\Repository\ShortUrlRepository;
 use Shlinkio\Shlink\Core\Service\ShortUrl\ShortUrlResolverInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Helper\ShortUrlTitleResolutionHelperInterface;
+use Shlinkio\Shlink\Core\ShortUrl\Paginator\Adapter\ShortUrlRepositoryAdapter;
 use Shlinkio\Shlink\Core\ShortUrl\Resolver\ShortUrlRelationResolverInterface;
 use Shlinkio\Shlink\Rest\Entity\ApiKey;
 
 class ShortUrlService implements ShortUrlServiceInterface
 {
-    private ORM\EntityManagerInterface $em;
-    private ShortUrlResolverInterface $urlResolver;
-    private ShortUrlTitleResolutionHelperInterface $titleResolutionHelper;
-    private ShortUrlRelationResolverInterface $relationResolver;
-
     public function __construct(
-        ORM\EntityManagerInterface $em,
-        ShortUrlResolverInterface $urlResolver,
-        ShortUrlTitleResolutionHelperInterface $titleResolutionHelper,
-        ShortUrlRelationResolverInterface $relationResolver
+        private ORM\EntityManagerInterface $em,
+        private ShortUrlResolverInterface $urlResolver,
+        private ShortUrlTitleResolutionHelperInterface $titleResolutionHelper,
+        private ShortUrlRelationResolverInterface $relationResolver,
     ) {
-        $this->em = $em;
-        $this->urlResolver = $urlResolver;
-        $this->titleResolutionHelper = $titleResolutionHelper;
-        $this->relationResolver = $relationResolver;
     }
 
     /**
@@ -59,7 +50,7 @@ class ShortUrlService implements ShortUrlServiceInterface
     public function updateShortUrl(
         ShortUrlIdentifier $identifier,
         ShortUrlEdit $shortUrlEdit,
-        ?ApiKey $apiKey = null
+        ?ApiKey $apiKey = null,
     ): ShortUrl {
         if ($shortUrlEdit->longUrlWasProvided()) {
             /** @var ShortUrlEdit $shortUrlEdit */

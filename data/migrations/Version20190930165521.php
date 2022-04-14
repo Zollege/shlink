@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkMigrations;
 
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\SchemaException;
 use Doctrine\DBAL\Types\Types;
@@ -51,5 +52,10 @@ final class Version20190930165521 extends AbstractMigration
     {
         $schema->getTable('short_urls')->dropColumn('domain_id');
         $schema->dropTable('domains');
+    }
+
+    public function isTransactional(): bool
+    {
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

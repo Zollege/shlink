@@ -8,7 +8,7 @@ return [
 
     'cli' => [
         'commands' => [
-            Command\ShortUrl\GenerateShortUrlCommand::NAME => Command\ShortUrl\GenerateShortUrlCommand::class,
+            Command\ShortUrl\CreateShortUrlCommand::NAME => Command\ShortUrl\CreateShortUrlCommand::class,
             Command\ShortUrl\ResolveUrlCommand::NAME => Command\ShortUrl\ResolveUrlCommand::class,
             Command\ShortUrl\ListShortUrlsCommand::NAME => Command\ShortUrl\ListShortUrlsCommand::class,
             Command\ShortUrl\GetVisitsCommand::NAME => Command\ShortUrl\GetVisitsCommand::class,
@@ -22,11 +22,11 @@ return [
             Command\Api\ListKeysCommand::NAME => Command\Api\ListKeysCommand::class,
 
             Command\Tag\ListTagsCommand::NAME => Command\Tag\ListTagsCommand::class,
-            Command\Tag\CreateTagCommand::NAME => Command\Tag\CreateTagCommand::class,
             Command\Tag\RenameTagCommand::NAME => Command\Tag\RenameTagCommand::class,
             Command\Tag\DeleteTagsCommand::NAME => Command\Tag\DeleteTagsCommand::class,
 
             Command\Domain\ListDomainsCommand::NAME => Command\Domain\ListDomainsCommand::class,
+            Command\Domain\DomainRedirectsCommand::NAME => Command\Domain\DomainRedirectsCommand::class,
 
             Command\Db\CreateDatabaseCommand::NAME => Command\Db\CreateDatabaseCommand::class,
             Command\Db\MigrateDatabaseCommand::NAME => Command\Db\MigrateDatabaseCommand::class,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkMigrations;
 
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\Migrations\AbstractMigration;
@@ -48,5 +49,10 @@ final class Version20210102174433 extends AbstractMigration
         $this->skipIf(! $schema->hasTable(self::TABLE_NAME));
         $schema->getTable(self::TABLE_NAME)->dropIndex('UQ_role_plus_api_key');
         $schema->dropTable(self::TABLE_NAME);
+    }
+
+    public function isTransactional(): bool
+    {
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

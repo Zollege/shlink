@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkMigrations;
 
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\Migrations\AbstractMigration;
@@ -40,5 +41,10 @@ final class Version20201023090929 extends AbstractMigration
         $shortUrls->dropColumn(self::IMPORT_SOURCE_COLUMN);
         $shortUrls->dropColumn('import_original_short_code');
         $shortUrls->dropIndex('unique_imports');
+    }
+
+    public function isTransactional(): bool
+    {
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

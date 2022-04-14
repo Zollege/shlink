@@ -14,7 +14,7 @@ use function Shlinkio\Shlink\Core\getOptionalBoolFromInputFilter;
 use function Shlinkio\Shlink\Core\getOptionalIntFromInputFilter;
 use function Shlinkio\Shlink\Core\parseDateField;
 
-use const Shlinkio\Shlink\Core\DEFAULT_SHORT_CODES_LENGTH;
+use const Shlinkio\Shlink\DEFAULT_SHORT_CODES_LENGTH;
 
 final class ShortUrlMeta implements TitleResolutionModelInterface
 {
@@ -26,11 +26,13 @@ final class ShortUrlMeta implements TitleResolutionModelInterface
     private ?bool $findIfExists = null;
     private ?string $domain = null;
     private int $shortCodeLength = 5;
-    private ?bool $validateUrl = null;
+    private bool $validateUrl = false;
     private ?ApiKey $apiKey = null;
     private array $tags = [];
     private ?string $title = null;
     private bool $titleWasAutoResolved = false;
+    private bool $crawlable = false;
+    private bool $forwardQuery = true;
 
     private function __construct()
     {
@@ -71,7 +73,7 @@ final class ShortUrlMeta implements TitleResolutionModelInterface
         $this->customSlug = $inputFilter->getValue(ShortUrlInputFilter::CUSTOM_SLUG);
         $this->maxVisits = getOptionalIntFromInputFilter($inputFilter, ShortUrlInputFilter::MAX_VISITS);
         $this->findIfExists = $inputFilter->getValue(ShortUrlInputFilter::FIND_IF_EXISTS);
-        $this->validateUrl = getOptionalBoolFromInputFilter($inputFilter, ShortUrlInputFilter::VALIDATE_URL);
+        $this->validateUrl = getOptionalBoolFromInputFilter($inputFilter, ShortUrlInputFilter::VALIDATE_URL) ?? false;
         $this->domain = $inputFilter->getValue(ShortUrlInputFilter::DOMAIN);
         $this->shortCodeLength = getOptionalIntFromInputFilter(
             $inputFilter,
@@ -80,6 +82,8 @@ final class ShortUrlMeta implements TitleResolutionModelInterface
         $this->apiKey = $inputFilter->getValue(ShortUrlInputFilter::API_KEY);
         $this->tags = $inputFilter->getValue(ShortUrlInputFilter::TAGS);
         $this->title = $inputFilter->getValue(ShortUrlInputFilter::TITLE);
+        $this->crawlable = $inputFilter->getValue(ShortUrlInputFilter::CRAWLABLE);
+        $this->forwardQuery = getOptionalBoolFromInputFilter($inputFilter, ShortUrlInputFilter::FORWARD_QUERY) ?? true;
     }
 
     public function getLongUrl(): string
@@ -147,7 +151,7 @@ final class ShortUrlMeta implements TitleResolutionModelInterface
         return $this->shortCodeLength;
     }
 
-    public function doValidateUrl(): ?bool
+    public function doValidateUrl(): bool
     {
         return $this->validateUrl;
     }
@@ -187,5 +191,15 @@ final class ShortUrlMeta implements TitleResolutionModelInterface
         $copy->titleWasAutoResolved = true;
 
         return $copy;
+    }
+
+    public function isCrawlable(): bool
+    {
+        return $this->crawlable;
+    }
+
+    public function forwardQuery(): bool
+    {
+        return $this->forwardQuery;
     }
 }

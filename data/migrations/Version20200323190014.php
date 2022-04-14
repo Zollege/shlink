@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkMigrations;
 
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\Migrations\AbstractMigration;
@@ -32,7 +33,7 @@ final class Version20200323190014 extends AbstractMigration
            ->andWhere($qb->expr()->eq('lon', 0))
            ->setParameter('isEmpty', true)
            ->setParameter('emptyString', '')
-           ->execute();
+           ->executeStatement();
     }
 
     public function down(Schema $schema): void
@@ -41,5 +42,10 @@ final class Version20200323190014 extends AbstractMigration
         $this->skipIf(!$visitLocations->hasColumn('is_empty'));
 
         $visitLocations->dropColumn('is_empty');
+    }
+
+    public function isTransactional(): bool
+    {
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

@@ -6,11 +6,11 @@ namespace Shlinkio\Shlink\CLI\Command\Api;
 
 use Cake\Chronos\Chronos;
 use Shlinkio\Shlink\CLI\ApiKey\RoleResolverInterface;
-use Shlinkio\Shlink\CLI\Command\BaseCommand;
 use Shlinkio\Shlink\CLI\Util\ExitCodes;
 use Shlinkio\Shlink\CLI\Util\ShlinkTable;
 use Shlinkio\Shlink\Rest\ApiKey\Role;
 use Shlinkio\Shlink\Rest\Service\ApiKeyServiceInterface;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -19,18 +19,15 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use function Shlinkio\Shlink\Core\arrayToString;
 use function sprintf;
 
-class GenerateKeyCommand extends BaseCommand
+class GenerateKeyCommand extends Command
 {
     public const NAME = 'api-key:generate';
 
-    private ApiKeyServiceInterface $apiKeyService;
-    private RoleResolverInterface $roleResolver;
-
-    public function __construct(ApiKeyServiceInterface $apiKeyService, RoleResolverInterface $roleResolver)
-    {
+    public function __construct(
+        private ApiKeyServiceInterface $apiKeyService,
+        private RoleResolverInterface $roleResolver,
+    ) {
         parent::__construct();
-        $this->apiKeyService = $apiKeyService;
-        $this->roleResolver = $roleResolver;
     }
 
     protected function configure(): void
@@ -66,7 +63,7 @@ class GenerateKeyCommand extends BaseCommand
                 InputOption::VALUE_REQUIRED,
                 'The name by which this API key will be known.',
             )
-            ->addOptionWithDeprecatedFallback(
+            ->addOption(
                 'expiration-date',
                 'e',
                 InputOption::VALUE_REQUIRED,
@@ -89,7 +86,7 @@ class GenerateKeyCommand extends BaseCommand
 
     protected function execute(InputInterface $input, OutputInterface $output): ?int
     {
-        $expirationDate = $this->getOptionWithDeprecatedFallback($input, 'expiration-date');
+        $expirationDate = $input->getOption('expiration-date');
         $apiKey = $this->apiKeyService->create(
             isset($expirationDate) ? Chronos::parse($expirationDate) : null,
             $input->getOption('name'),
@@ -100,7 +97,7 @@ class GenerateKeyCommand extends BaseCommand
         $io->success(sprintf('Generated API key: "%s"', $apiKey->toString()));
 
         if (! $apiKey->isAdmin()) {
-            ShlinkTable::fromOutput($io)->render(
+            ShlinkTable::default($io)->render(
                 ['Role name', 'Role metadata'],
                 $apiKey->mapRoles(fn (string $name, array $meta) => [$name, arrayToString($meta, 0)]),
                 null,

@@ -10,9 +10,8 @@ use function sprintf;
 
 class AppOptions extends AbstractOptions
 {
-    private string $name = '';
-    private string $version = '1.0';
-    private ?string $disableTrackParam = null;
+    private string $name = 'Shlink';
+    private string $version = '3.0.0';
 
     public function getName(): string
     {
@@ -33,19 +32,6 @@ class AppOptions extends AbstractOptions
     protected function setVersion(string $version): self
     {
         $this->version = $version;
-        return $this;
-    }
-
-    /**
-     */
-    public function getDisableTrackParam(): ?string
-    {
-        return $this->disableTrackParam;
-    }
-
-    protected function setDisableTrackParam(?string $disableTrackParam): self
-    {
-        $this->disableTrackParam = $disableTrackParam;
         return $this;
     }
 

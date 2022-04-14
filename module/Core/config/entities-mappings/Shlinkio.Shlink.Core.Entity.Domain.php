@@ -21,7 +21,22 @@ return static function (ClassMetadata $metadata, array $emConfig): void {
             ->option('unsigned', true)
             ->build();
 
-    $builder->createField('authority', Types::STRING)
+    fieldWithUtf8Charset($builder->createField('authority', Types::STRING), $emConfig)
             ->unique()
+            ->build();
+
+    fieldWithUtf8Charset($builder->createField('baseUrlRedirect', Types::STRING), $emConfig)
+            ->columnName('base_url_redirect')
+            ->nullable()
+            ->build();
+
+    fieldWithUtf8Charset($builder->createField('regular404Redirect', Types::STRING), $emConfig)
+            ->columnName('regular_not_found_redirect')
+            ->nullable()
+            ->build();
+
+    fieldWithUtf8Charset($builder->createField('invalidShortUrlRedirect', Types::STRING), $emConfig)
+            ->columnName('invalid_short_url_redirect')
+            ->nullable()
             ->build();
 };

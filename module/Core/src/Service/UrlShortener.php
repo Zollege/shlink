@@ -10,27 +10,18 @@ use Shlinkio\Shlink\Core\Exception\InvalidUrlException;
 use Shlinkio\Shlink\Core\Exception\NonUniqueSlugException;
 use Shlinkio\Shlink\Core\Model\ShortUrlMeta;
 use Shlinkio\Shlink\Core\Repository\ShortUrlRepositoryInterface;
-use Shlinkio\Shlink\Core\Service\ShortUrl\ShortCodeHelperInterface;
+use Shlinkio\Shlink\Core\Service\ShortUrl\ShortCodeUniquenessHelperInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Helper\ShortUrlTitleResolutionHelperInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Resolver\ShortUrlRelationResolverInterface;
 
 class UrlShortener implements UrlShortenerInterface
 {
-    private EntityManagerInterface $em;
-    private ShortUrlTitleResolutionHelperInterface $titleResolutionHelper;
-    private ShortUrlRelationResolverInterface $relationResolver;
-    private ShortCodeHelperInterface $shortCodeHelper;
-
     public function __construct(
-        ShortUrlTitleResolutionHelperInterface $titleResolutionHelper,
-        EntityManagerInterface $em,
-        ShortUrlRelationResolverInterface $relationResolver,
-        ShortCodeHelperInterface $shortCodeHelper
+        private ShortUrlTitleResolutionHelperInterface $titleResolutionHelper,
+        private EntityManagerInterface $em,
+        private ShortUrlRelationResolverInterface $relationResolver,
+        private ShortCodeUniquenessHelperInterface $shortCodeHelper,
     ) {
-        $this->titleResolutionHelper = $titleResolutionHelper;
-        $this->em = $em;
-        $this->relationResolver = $relationResolver;
-        $this->shortCodeHelper = $shortCodeHelper;
     }
 
     /**
@@ -78,7 +69,7 @@ class UrlShortener implements UrlShortenerInterface
 
         if (! $couldBeMadeUnique) {
             $domain = $shortUrlToBeCreated->getDomain();
-            $domainAuthority = $domain !== null ? $domain->getAuthority() : null;
+            $domainAuthority = $domain?->getAuthority();
 
             throw NonUniqueSlugException::fromSlug($shortUrlToBeCreated->getShortCode(), $domainAuthority);
         }

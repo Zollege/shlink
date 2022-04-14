@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ShlinkMigrations;
 
 use Doctrine\DBAL\Exception;
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\SchemaException;
 use Doctrine\DBAL\Schema\Table;
@@ -58,11 +59,16 @@ final class Version20181020060559 extends AbstractMigration
         foreach (self::COLUMNS as $camelCaseName => $snakeCaseName) {
             $qb->set($snakeCaseName, $camelCaseName);
         }
-        $qb->execute();
+        $qb->executeStatement();
     }
 
     public function down(Schema $schema): void
     {
         // No down
+    }
+
+    public function isTransactional(): bool
+    {
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

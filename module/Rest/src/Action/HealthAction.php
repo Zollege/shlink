@@ -20,13 +20,8 @@ class HealthAction extends AbstractRestAction
     protected const ROUTE_PATH = '/health';
     protected const ROUTE_ALLOWED_METHODS = [self::METHOD_GET];
 
-    private EntityManagerInterface $em;
-    private AppOptions $options;
-
-    public function __construct(EntityManagerInterface $em, AppOptions $options)
+    public function __construct(private EntityManagerInterface $em, private AppOptions $options)
     {
-        $this->em = $em;
-        $this->options = $options;
     }
 
     /**
@@ -37,8 +32,10 @@ class HealthAction extends AbstractRestAction
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         try {
-            $connected = $this->em->getConnection()->ping();
-        } catch (Throwable $e) {
+            $connection = $this->em->getConnection();
+            $connection->executeQuery($connection->getDatabasePlatform()->getDummySelectSQL());
+            $connected = true;
+        } catch (Throwable) {
             $connected = false;
         }
 

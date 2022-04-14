@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkioTest\Shlink\CLI\Command\Api;
 
+use Cake\Chronos\Chronos;
 use PHPUnit\Framework\TestCase;
 use Prophecy\Prophecy\ObjectProphecy;
 use Shlinkio\Shlink\CLI\Command\Api\ListKeysCommand;
@@ -45,17 +46,25 @@ class ListKeysCommandTest extends TestCase
 
     public function provideKeysAndOutputs(): iterable
     {
+        $dateInThePast = Chronos::createFromFormat('Y-m-d H:i:s', '2020-01-01 00:00:00');
+
         yield 'all keys' => [
-            [$apiKey1 = ApiKey::create(), $apiKey2 = ApiKey::create(), $apiKey3 = ApiKey::create()],
+            [
+                $apiKey1 = ApiKey::create()->disable(),
+                $apiKey2 = ApiKey::fromMeta(ApiKeyMeta::withExpirationDate($dateInThePast)),
+                $apiKey3 = ApiKey::create(),
+            ],
             false,
             <<<OUTPUT
-            +--------------------------------------+------+------------+-----------------+-------+
-            | Key                                  | Name | Is enabled | Expiration date | Roles |
-            +--------------------------------------+------+------------+-----------------+-------+
-            | {$apiKey1} | -    | +++        | -               | Admin |
-            | {$apiKey2} | -    | +++        | -               | Admin |
-            | {$apiKey3} | -    | +++        | -               | Admin |
-            +--------------------------------------+------+------------+-----------------+-------+
+            +--------------------------------------+------+------------+---------------------------+-------+
+            | Key                                  | Name | Is enabled | Expiration date           | Roles |
+            +--------------------------------------+------+------------+---------------------------+-------+
+            | {$apiKey1} | -    | ---        | -                         | Admin |
+            +--------------------------------------+------+------------+---------------------------+-------+
+            | {$apiKey2} | -    | ---        | 2020-01-01T00:00:00+00:00 | Admin |
+            +--------------------------------------+------+------------+---------------------------+-------+
+            | {$apiKey3} | -    | +++        | -                         | Admin |
+            +--------------------------------------+------+------------+---------------------------+-------+
 
             OUTPUT,
         ];
@@ -67,6 +76,7 @@ class ListKeysCommandTest extends TestCase
             | Key                                  | Name | Expiration date | Roles |
             +--------------------------------------+------+-----------------+-------+
             | {$apiKey1} | -    | -               | Admin |
+            +--------------------------------------+------+-----------------+-------+
             | {$apiKey2} | -    | -               | Admin |
             +--------------------------------------+------+-----------------+-------+
 
@@ -76,11 +86,13 @@ class ListKeysCommandTest extends TestCase
             [
                 $apiKey1 = ApiKey::create(),
                 $apiKey2 = $this->apiKeyWithRoles([RoleDefinition::forAuthoredShortUrls()]),
-                $apiKey3 = $this->apiKeyWithRoles([RoleDefinition::forDomain((new Domain('example.com'))->setId('1'))]),
+                $apiKey3 = $this->apiKeyWithRoles(
+                    [RoleDefinition::forDomain(Domain::withAuthority('example.com')->setId('1'))],
+                ),
                 $apiKey4 = ApiKey::create(),
                 $apiKey5 = $this->apiKeyWithRoles([
                     RoleDefinition::forAuthoredShortUrls(),
-                    RoleDefinition::forDomain((new Domain('example.com'))->setId('1')),
+                    RoleDefinition::forDomain(Domain::withAuthority('example.com')->setId('1')),
                 ]),
                 $apiKey6 = ApiKey::create(),
             ],
@@ -90,11 +102,16 @@ class ListKeysCommandTest extends TestCase
             | Key                                  | Name | Expiration date | Roles                    |
             +--------------------------------------+------+-----------------+--------------------------+
             | {$apiKey1} | -    | -               | Admin                    |
+            +--------------------------------------+------+-----------------+--------------------------+
             | {$apiKey2} | -    | -               | Author only              |
+            +--------------------------------------+------+-----------------+--------------------------+
             | {$apiKey3} | -    | -               | Domain only: example.com |
+            +--------------------------------------+------+-----------------+--------------------------+
             | {$apiKey4} | -    | -               | Admin                    |
+            +--------------------------------------+------+-----------------+--------------------------+
             | {$apiKey5} | -    | -               | Author only              |
             |                                      |      |                 | Domain only: example.com |
+            +--------------------------------------+------+-----------------+--------------------------+
             | {$apiKey6} | -    | -               | Admin                    |
             +--------------------------------------+------+-----------------+--------------------------+
 
@@ -113,8 +130,11 @@ class ListKeysCommandTest extends TestCase
             | Key                                  | Name          | Expiration date | Roles |
             +--------------------------------------+---------------+-----------------+-------+
             | {$apiKey1} | Alice         | -               | Admin |
+            +--------------------------------------+---------------+-----------------+-------+
             | {$apiKey2} | Alice and Bob | -               | Admin |
+            +--------------------------------------+---------------+-----------------+-------+
             | {$apiKey3} |               | -               | Admin |
+            +--------------------------------------+---------------+-----------------+-------+
             | {$apiKey4} | -             | -               | Admin |
             +--------------------------------------+---------------+-----------------+-------+
 

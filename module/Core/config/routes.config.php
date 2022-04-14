@@ -10,6 +10,14 @@ return [
 
     'routes' => [
         [
+            'name' => Action\RobotsAction::class,
+            'path' => '/robots.txt',
+            'middleware' => [
+                Action\RobotsAction::class,
+            ],
+            'allowed_methods' => [RequestMethod::METHOD_GET],
+        ],
+        [
             'name' => Action\RedirectAction::class,
             'path' => '/{shortCode}',
             'middleware' => [
@@ -30,16 +38,6 @@ return [
         [
             'name' => Action\QrCodeAction::class,
             'path' => '/{shortCode}/qr-code',
-            'middleware' => [
-                Action\QrCodeAction::class,
-            ],
-            'allowed_methods' => [RequestMethod::METHOD_GET],
-        ],
-
-        // Deprecated
-        [
-            'name' => 'old_' . Action\QrCodeAction::class,
-            'path' => '/{shortCode}/qr-code/{size:[0-9]+}',
             'middleware' => [
                 Action\QrCodeAction::class,
             ],

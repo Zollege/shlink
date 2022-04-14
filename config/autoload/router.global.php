@@ -3,11 +3,12 @@
 declare(strict_types=1);
 
 use Mezzio\Router\FastRouteRouter;
+use Shlinkio\Shlink\Core\Config\EnvVars;
 
 return [
 
     'router' => [
-        'base_path' => '',
+        'base_path' => EnvVars::BASE_PATH()->loadFromEnv(''),
 
         'fastroute' => [
             FastRouteRouter::CONFIG_CACHE_ENABLED => true,

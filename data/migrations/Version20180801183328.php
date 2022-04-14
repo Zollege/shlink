@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkMigrations;
 
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\SchemaException;
 use Doctrine\Migrations\AbstractMigration;
@@ -38,5 +39,10 @@ final class Version20180801183328 extends AbstractMigration
     private function setSize(Schema $schema, int $size): void
     {
         $schema->getTable('short_urls')->getColumn('short_code')->setLength($size);
+    }
+
+    public function isTransactional(): bool
+    {
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

@@ -6,28 +6,18 @@ namespace Shlinkio\Shlink\Core;
 
 use Cake\Chronos\Chronos;
 use DateTimeInterface;
-use Fig\Http\Message\StatusCodeInterface;
+use Doctrine\ORM\Mapping\Builder\FieldBuilder;
+use Jaybizzle\CrawlerDetect\CrawlerDetect;
 use Laminas\InputFilter\InputFilter;
 use PUGX\Shortid\Factory as ShortIdFactory;
 use Shlinkio\Shlink\Common\Util\DateRange;
 
 use function Functional\reduce_left;
 use function is_array;
-use function lcfirst;
 use function print_r;
+use function Shlinkio\Shlink\Common\buildDateRange;
 use function sprintf;
 use function str_repeat;
-use function str_replace;
-use function ucwords;
-
-const DEFAULT_DELETE_SHORT_URL_THRESHOLD = 15;
-const DEFAULT_SHORT_CODES_LENGTH = 5;
-const MIN_SHORT_CODES_LENGTH = 4;
-const DEFAULT_REDIRECT_STATUS_CODE = StatusCodeInterface::STATUS_FOUND;
-const DEFAULT_REDIRECT_CACHE_LIFETIME = 30;
-const LOCAL_LOCK_FACTORY = 'Shlinkio\Shlink\LocalLockFactory';
-const CUSTOM_SLUGS_REGEXP = '/[^\pL\pN._~]/u'; // Any unicode letter or number, plus ".", "_" and "~" chars
-const TITLE_TAG_VALUE = '/<title[^>]*>(.*?)<\/title>/i'; // Matches the value inside an html title tag
 
 function generateRandomShortCode(int $length): string
 {
@@ -42,7 +32,7 @@ function generateRandomShortCode(int $length): string
 
 function parseDateFromQuery(array $query, string $dateName): ?Chronos
 {
-    return ! isset($query[$dateName]) || empty($query[$dateName]) ? null : Chronos::parse($query[$dateName]);
+    return empty($query[$dateName] ?? null) ? null : Chronos::parse($query[$dateName]);
 }
 
 function parseDateRangeFromQuery(array $query, string $startDateName, string $endDateName): DateRange
@@ -50,26 +40,10 @@ function parseDateRangeFromQuery(array $query, string $startDateName, string $en
     $startDate = parseDateFromQuery($query, $startDateName);
     $endDate = parseDateFromQuery($query, $endDateName);
 
-    // TODO Use match expression when migrating to PHP8
-    if ($startDate === null && $endDate === null) {
-        return DateRange::emptyInstance();
-    }
-
-    if ($startDate !== null && $endDate !== null) {
-        return DateRange::withStartAndEndDate($startDate, $endDate);
-    }
-
-    if ($startDate !== null) {
-        return DateRange::withStartDate($startDate);
-    }
-
-    return DateRange::withEndDate($endDate);
+    return buildDateRange($startDate, $endDate);
 }
 
-/**
- * @param string|DateTimeInterface|Chronos|null $date
- */
-function parseDateField($date): ?Chronos
+function parseDateField(string|DateTimeInterface|Chronos|null $date): ?Chronos
 {
     if ($date === null || $date instanceof Chronos) {
         return $date;
@@ -124,7 +98,21 @@ function arrayToString(array $array, int $indentSize = 4): string
     }, '');
 }
 
-function kebabCaseToCamelCase(string $name): string
+function isCrawler(string $userAgent): bool
 {
-    return lcfirst(str_replace(' ', '', ucwords(str_replace('-', ' ', $name))));
+    static $detector;
+    if ($detector === null) {
+        $detector = new CrawlerDetect();
+    }
+
+    return $detector->isCrawler($userAgent);
+}
+
+function fieldWithUtf8Charset(FieldBuilder $field, array $emConfig, string $collation = 'unicode_ci'): FieldBuilder
+{
+    return match ($emConfig['connection']['driver'] ?? null) {
+        'pdo_mysql' => $field->option('charset', 'utf8mb4')
+                             ->option('collation', 'utf8mb4_' . $collation),
+        default => $field,
+    };
 }

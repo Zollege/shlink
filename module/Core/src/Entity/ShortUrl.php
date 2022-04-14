@@ -42,6 +42,8 @@ class ShortUrl extends AbstractEntity
     private ?ApiKey $authorApiKey = null;
     private ?string $title = null;
     private bool $titleWasAutoResolved = false;
+    private bool $crawlable = false;
+    private bool $forwardQuery = true;
 
     private function __construct()
     {
@@ -59,7 +61,7 @@ class ShortUrl extends AbstractEntity
 
     public static function fromMeta(
         ShortUrlMeta $meta,
-        ?ShortUrlRelationResolverInterface $relationResolver = null
+        ?ShortUrlRelationResolverInterface $relationResolver = null,
     ): self {
         $instance = new self();
         $relationResolver = $relationResolver ?? new SimpleShortUrlRelationResolver();
@@ -78,6 +80,8 @@ class ShortUrl extends AbstractEntity
         $instance->authorApiKey = $meta->getApiKey();
         $instance->title = $meta->getTitle();
         $instance->titleWasAutoResolved = $meta->titleWasAutoResolved();
+        $instance->crawlable = $meta->isCrawlable();
+        $instance->forwardQuery = $meta->forwardQuery();
 
         return $instance;
     }
@@ -85,7 +89,7 @@ class ShortUrl extends AbstractEntity
     public static function fromImport(
         ImportedShlinkUrl $url,
         bool $importShortCode,
-        ?ShortUrlRelationResolverInterface $relationResolver = null
+        ?ShortUrlRelationResolverInterface $relationResolver = null,
     ): self {
         $meta = [
             ShortUrlInputFilter::VALIDATE_URL => false,
@@ -200,9 +204,19 @@ class ShortUrl extends AbstractEntity
         return $this->title;
     }
 
+    public function crawlable(): bool
+    {
+        return $this->crawlable;
+    }
+
+    public function forwardQuery(): bool
+    {
+        return $this->forwardQuery;
+    }
+
     public function update(
         ShortUrlEdit $shortUrlEdit,
-        ?ShortUrlRelationResolverInterface $relationResolver = null
+        ?ShortUrlRelationResolverInterface $relationResolver = null,
     ): void {
         if ($shortUrlEdit->validSinceWasProvided()) {
             $this->validSince = $shortUrlEdit->validSince();
@@ -220,6 +234,9 @@ class ShortUrl extends AbstractEntity
             $relationResolver = $relationResolver ?? new SimpleShortUrlRelationResolver();
             $this->tags = $relationResolver->resolveTags($shortUrlEdit->tags());
         }
+        if ($shortUrlEdit->crawlableWasProvided()) {
+            $this->crawlable = $shortUrlEdit->crawlable();
+        }
         if (
             $this->title === null
             || $shortUrlEdit->titleWasProvided()
@@ -227,6 +244,9 @@ class ShortUrl extends AbstractEntity
         ) {
             $this->title = $shortUrlEdit->title();
             $this->titleWasAutoResolved = $shortUrlEdit->titleWasAutoResolved();
+        }
+        if ($shortUrlEdit->forwardQueryWasProvided()) {
+            $this->forwardQuery = $shortUrlEdit->forwardQuery();
         }
     }
 
