@@ -4,17 +4,19 @@ declare(strict_types=1);
 
 namespace Shlinkio\Shlink\Core\Validation;
 
-use Cocur\Slugify\Slugify;
 use DateTime;
+use Laminas\Filter;
 use Laminas\InputFilter\Input;
 use Laminas\InputFilter\InputFilter;
 use Laminas\Validator;
 use Shlinkio\Shlink\Common\Validation;
-use Shlinkio\Shlink\Core\Util\CocurSymfonySluggerBridge;
 use Shlinkio\Shlink\Rest\Entity\ApiKey;
 
-use const Shlinkio\Shlink\Core\CUSTOM_SLUGS_REGEXP;
-use const Shlinkio\Shlink\Core\MIN_SHORT_CODES_LENGTH;
+use function is_string;
+use function str_replace;
+use function substr;
+
+use const Shlinkio\Shlink\MIN_SHORT_CODES_LENGTH;
 
 class ShortUrlInputFilter extends InputFilter
 {
@@ -32,6 +34,8 @@ class ShortUrlInputFilter extends InputFilter
     public const API_KEY = 'apiKey';
     public const TAGS = 'tags';
     public const TITLE = 'title';
+    public const CRAWLABLE = 'crawlable';
+    public const FORWARD_QUERY = 'forwardQuery';
 
     private function __construct(array $data, bool $requireLongUrl)
     {
@@ -72,11 +76,9 @@ class ShortUrlInputFilter extends InputFilter
         // FIXME The only way to enforce the NotEmpty validator to be evaluated when the value is provided but it's
         //       empty, is by using the deprecated setContinueIfEmpty
         $customSlug = $this->createInput(self::CUSTOM_SLUG, false)->setContinueIfEmpty(true);
-        $customSlug->getFilterChain()->attach(new Validation\SluggerFilter(new CocurSymfonySluggerBridge(new Slugify([
-            'regexp' => CUSTOM_SLUGS_REGEXP,
-            'lowercase' => false, // We want to keep it case sensitive
-            'rulesets' => ['default'],
-        ]))));
+        $customSlug->getFilterChain()->attach(new Filter\Callback(
+            static fn (mixed $value) => is_string($value) ? str_replace([' ', '/'], '-', $value) : $value,
+        ));
         $customSlug->getValidatorChain()->attach(new Validator\NotEmpty([
             Validator\NotEmpty::STRING,
             Validator\NotEmpty::SPACE,
@@ -88,9 +90,10 @@ class ShortUrlInputFilter extends InputFilter
 
         $this->add($this->createBooleanInput(self::FIND_IF_EXISTS, false));
 
-        // This cannot be defined as a boolean input because it can actually have 3 values, true, false and null.
-        // Defining it as boolean will make null fall back to false, which is not the desired behavior.
+        // These cannot be defined as a boolean inputs, because they can actually have 3 values: true, false and null.
+        // Defining them as boolean will make null fall back to false, which is not the desired behavior.
         $this->add($this->createInput(self::VALIDATE_URL, false));
+        $this->add($this->createInput(self::FORWARD_QUERY, false));
 
         $domain = $this->createInput(self::DOMAIN, false);
         $domain->getValidatorChain()->attach(new Validation\HostAndPortValidator());
@@ -104,6 +107,12 @@ class ShortUrlInputFilter extends InputFilter
 
         $this->add($this->createTagsInput(self::TAGS, false));
 
-        $this->add($this->createInput(self::TITLE, false));
+        $title = $this->createInput(self::TITLE, false);
+        $title->getFilterChain()->attach(new Filter\Callback(
+            static fn (?string $value) => $value === null ? $value : substr($value, 0, 512),
+        ));
+        $this->add($title);
+
+        $this->add($this->createBooleanInput(self::CRAWLABLE, false));
     }
 }

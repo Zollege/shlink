@@ -6,9 +6,7 @@ namespace Shlinkio\Shlink\CLI\Command\Visit;
 
 use Shlinkio\Shlink\CLI\Command\Util\AbstractLockedCommand;
 use Shlinkio\Shlink\CLI\Command\Util\LockedCommandConfig;
-use Shlinkio\Shlink\CLI\Exception\GeolocationDbUpdateFailedException;
 use Shlinkio\Shlink\CLI\Util\ExitCodes;
-use Shlinkio\Shlink\CLI\Util\GeolocationDbUpdaterInterface;
 use Shlinkio\Shlink\Common\Util\IpAddress;
 use Shlinkio\Shlink\Core\Entity\Visit;
 use Shlinkio\Shlink\Core\Entity\VisitLocation;
@@ -19,7 +17,6 @@ use Shlinkio\Shlink\IpGeolocation\Exception\WrongIpException;
 use Shlinkio\Shlink\IpGeolocation\Model\Location;
 use Shlinkio\Shlink\IpGeolocation\Resolver\IpLocationResolverInterface;
 use Symfony\Component\Console\Exception\RuntimeException;
-use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -33,30 +30,23 @@ class LocateVisitsCommand extends AbstractLockedCommand implements VisitGeolocat
 {
     public const NAME = 'visit:locate';
 
-    private VisitLocatorInterface $visitLocator;
-    private IpLocationResolverInterface $ipLocationResolver;
-    private GeolocationDbUpdaterInterface $dbUpdater;
-
     private SymfonyStyle $io;
-    private ?ProgressBar $progressBar = null;
 
     public function __construct(
-        VisitLocatorInterface $visitLocator,
-        IpLocationResolverInterface $ipLocationResolver,
+        private VisitLocatorInterface $visitLocator,
+        private IpLocationResolverInterface $ipLocationResolver,
         LockFactory $locker,
-        GeolocationDbUpdaterInterface $dbUpdater
     ) {
         parent::__construct($locker);
-        $this->visitLocator = $visitLocator;
-        $this->ipLocationResolver = $ipLocationResolver;
-        $this->dbUpdater = $dbUpdater;
     }
 
     protected function configure(): void
     {
         $this
             ->setName(self::NAME)
-            ->setDescription('Resolves visits origin locations.')
+            ->setDescription(
+                'Resolves visits origin locations. It implicitly downloads/updates the GeoLite2 db file if needed.',
+            )
             ->addOption(
                 'retry',
                 'r',
@@ -90,12 +80,12 @@ class LocateVisitsCommand extends AbstractLockedCommand implements VisitGeolocat
             );
         }
 
-        if ($all && $retry && ! $this->warnAndVerifyContinue()) {
+        if ($all && $retry && ! $this->warnAndVerifyContinue($input)) {
             throw new RuntimeException('Execution aborted');
         }
     }
 
-    private function warnAndVerifyContinue(): bool
+    private function warnAndVerifyContinue(InputInterface $input): bool
     {
         $this->io->warning([
             'You are about to process the location of all existing visits your short URLs received.',
@@ -113,7 +103,7 @@ class LocateVisitsCommand extends AbstractLockedCommand implements VisitGeolocat
         $all = $retry && $input->getOption('all');
 
         try {
-            $this->checkDbUpdate();
+            $this->checkDbUpdate($input);
 
             if ($all) {
                 $this->visitLocator->locateAllVisits($this);
@@ -128,8 +118,8 @@ class LocateVisitsCommand extends AbstractLockedCommand implements VisitGeolocat
             return ExitCodes::EXIT_SUCCESS;
         } catch (Throwable $e) {
             $this->io->error($e->getMessage());
-            if ($e instanceof Throwable && $this->io->isVerbose()) {
-                $this->getApplication()->renderThrowable($e, $this->io);
+            if ($this->io->isVerbose()) {
+                $this->getApplication()?->renderThrowable($e, $this->io);
             }
 
             return ExitCodes::EXIT_FAILURE;
@@ -149,7 +139,7 @@ class LocateVisitsCommand extends AbstractLockedCommand implements VisitGeolocat
             throw IpCannotBeLocatedException::forEmptyAddress();
         }
 
-        $ipAddr = $visit->getRemoteAddr();
+        $ipAddr = $visit->getRemoteAddr() ?? '';
         $this->io->write(sprintf('Processing IP <fg=blue>%s</>', $ipAddr));
         if ($ipAddr === IpAddress::LOCALHOST) {
             $this->io->writeln(' [<comment>Ignored localhost address</comment>]');
@@ -161,7 +151,7 @@ class LocateVisitsCommand extends AbstractLockedCommand implements VisitGeolocat
         } catch (WrongIpException $e) {
             $this->io->writeln(' [<fg=red>An error occurred while locating IP. Skipped</>]');
             if ($this->io->isVerbose()) {
-                $this->getApplication()->renderThrowable($e, $this->io);
+                $this->getApplication()?->renderThrowable($e, $this->io);
             }
 
             throw IpCannotBeLocatedException::forError($e);
@@ -176,38 +166,23 @@ class LocateVisitsCommand extends AbstractLockedCommand implements VisitGeolocat
         $this->io->writeln($message);
     }
 
-    private function checkDbUpdate(): void
+    private function checkDbUpdate(InputInterface $input): void
     {
-        try {
-            $this->dbUpdater->checkDbUpdate(function (bool $olderDbExists): void {
-                $this->io->writeln(
-                    sprintf('<fg=blue>%s GeoLite2 database...</>', $olderDbExists ? 'Updating' : 'Downloading'),
-                );
-                $this->progressBar = new ProgressBar($this->io);
-            }, function (int $total, int $downloaded): void {
-                $this->progressBar->setMaxSteps($total);
-                $this->progressBar->setProgress($downloaded);
-            });
+        $cliApp = $this->getApplication();
+        if ($cliApp === null) {
+            return;
+        }
 
-            if ($this->progressBar !== null) {
-                $this->progressBar->finish();
-                $this->io->newLine();
-            }
-        } catch (GeolocationDbUpdateFailedException $e) {
-            if (! $e->olderDbExists()) {
-                $this->io->error('GeoLite2 database download failed. It is not possible to locate visits.');
-                throw $e;
-            }
+        $downloadDbCommand = $cliApp->find(DownloadGeoLiteDbCommand::NAME);
+        $exitCode = $downloadDbCommand->run($input, $this->io);
 
-            $this->io->newLine();
-            $this->io->writeln(
-                '<fg=yellow;options=bold>[Warning] GeoLite2 database update failed. Proceeding with old version.</>',
-            );
+        if ($exitCode === ExitCodes::EXIT_FAILURE) {
+            throw new RuntimeException('It is not possible to locate visits without a GeoLite2 db file.');
         }
     }
 
     protected function getLockConfig(): LockedCommandConfig
     {
-        return LockedCommandConfig::nonBlocking($this->getName());
+        return LockedCommandConfig::nonBlocking(self::NAME);
     }
 }

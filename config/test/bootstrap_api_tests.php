@@ -20,8 +20,7 @@ $config = $container->get('config');
 $em = $container->get(EntityManager::class);
 $httpClient = $container->get('shlink_test_api_client');
 
-// Start code coverage collecting on swoole process, and stop it when process shuts down
-$httpClient->request('GET', sprintf('http://%s:%s/api-tests/start-coverage', SWOOLE_TESTING_HOST, SWOOLE_TESTING_PORT));
+// Dump code coverage when process shuts down
 register_shutdown_function(function () use ($httpClient): void {
     $httpClient->request(
         'GET',
@@ -29,6 +28,6 @@ register_shutdown_function(function () use ($httpClient): void {
     );
 });
 
-$testHelper->createTestDb();
+$testHelper->createTestDb(['bin/cli', 'db:create'], ['bin/cli', 'db:migrate']);
 ApiTest\ApiTestCase::setApiClient($httpClient);
 ApiTest\ApiTestCase::setSeedFixturesCallback(fn () => $testHelper->seedFixtures($em, $config['data_fixtures'] ?? []));

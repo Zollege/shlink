@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        php-version: ['7.4', '8.0']
+        php-version: ['8.0', '8.1']
         swoole: ['yes', 'no']
     steps:
       - name: Checkout code
@@ -20,7 +20,7 @@ jobs:
         with:
           php-version: ${{ matrix.php-version }}
           tools: composer
-          extensions: swoole-4.6.3
+          extensions: openswoole-4.9.1
       - if: ${{ matrix.swoole == 'yes' }}
         run: ./build.sh ${GITHUB_REF#refs/tags/v}
       - if: ${{ matrix.swoole == 'no' }}
@@ -43,7 +43,6 @@ jobs:
         uses: docker://antonyurchenko/git-release:latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ALLOW_TAG_PREFIX: "true"
           ALLOW_EMPTY_CHANGELOG: "true"
         with:
           args: |
@@ -54,7 +53,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        php-version: [ '7.4', '8.0' ]
+        php-version: [ '8.0', '8.1' ]
         swoole: [ 'yes', 'no' ]
     steps:
       - uses: geekyeggo/delete-artifact@v1

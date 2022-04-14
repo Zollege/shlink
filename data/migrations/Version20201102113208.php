@@ -6,6 +6,7 @@ namespace ShlinkMigrations;
 
 use Cake\Chronos\Chronos;
 use Doctrine\DBAL\Driver\Result;
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\Migrations\AbstractMigration;
@@ -60,10 +61,7 @@ final class Version20201102113208 extends AbstractMigration
            ->execute();
     }
 
-    /**
-     * @return string|int|null
-     */
-    private function resolveOneApiKeyId(Result $result)
+    private function resolveOneApiKeyId(Result $result): string|int|null
     {
         $results = [];
         while ($row = $result->fetchAssociative()) {
@@ -87,11 +85,8 @@ final class Version20201102113208 extends AbstractMigration
         $shortUrls->dropColumn(self::API_KEY_COLUMN);
     }
 
-    /**
-     * @fixme Workaround for https://github.com/doctrine/migrations/issues/1104
-     */
     public function isTransactional(): bool
     {
-        return false;
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

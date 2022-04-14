@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkMigrations;
 
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\Migrations\AbstractMigration;
@@ -74,11 +75,8 @@ class Version20160820191203 extends AbstractMigration
         $schema->dropTable('tags');
     }
 
-    /**
-     * @fixme Workaround for https://github.com/doctrine/migrations/issues/1104
-     */
     public function isTransactional(): bool
     {
-        return false;
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

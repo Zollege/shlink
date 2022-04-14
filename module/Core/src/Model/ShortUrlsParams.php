@@ -8,18 +8,24 @@ use Shlinkio\Shlink\Common\Util\DateRange;
 use Shlinkio\Shlink\Core\Exception\ValidationException;
 use Shlinkio\Shlink\Core\Validation\ShortUrlsParamsInputFilter;
 
+use function Shlinkio\Shlink\Common\buildDateRange;
 use function Shlinkio\Shlink\Core\parseDateField;
 
 final class ShortUrlsParams
 {
+    public const ORDERABLE_FIELDS = ['longUrl', 'shortCode', 'dateCreated', 'title', 'visits'];
     public const DEFAULT_ITEMS_PER_PAGE = 10;
+    public const TAGS_MODE_ANY = 'any';
+    public const TAGS_MODE_ALL = 'all';
 
     private int $page;
+    private int $itemsPerPage;
     private ?string $searchTerm;
     private array $tags;
-    private ShortUrlsOrdering $orderBy;
+    /** @var self::TAGS_MODE_ANY|self::TAGS_MODE_ALL */
+    private string $tagsMode = self::TAGS_MODE_ANY;
+    private Ordering $orderBy;
     private ?DateRange $dateRange;
-    private ?int $itemsPerPage = null;
 
     private function __construct()
     {
@@ -54,14 +60,15 @@ final class ShortUrlsParams
         $this->page = (int) ($inputFilter->getValue(ShortUrlsParamsInputFilter::PAGE) ?? 1);
         $this->searchTerm = $inputFilter->getValue(ShortUrlsParamsInputFilter::SEARCH_TERM);
         $this->tags = (array) $inputFilter->getValue(ShortUrlsParamsInputFilter::TAGS);
-        $this->dateRange = new DateRange(
+        $this->dateRange = buildDateRange(
             parseDateField($inputFilter->getValue(ShortUrlsParamsInputFilter::START_DATE)),
             parseDateField($inputFilter->getValue(ShortUrlsParamsInputFilter::END_DATE)),
         );
-        $this->orderBy = ShortUrlsOrdering::fromRawData($query);
+        $this->orderBy = Ordering::fromTuple($inputFilter->getValue(ShortUrlsParamsInputFilter::ORDER_BY));
         $this->itemsPerPage = (int) (
             $inputFilter->getValue(ShortUrlsParamsInputFilter::ITEMS_PER_PAGE) ?? self::DEFAULT_ITEMS_PER_PAGE
         );
+        $this->tagsMode = $inputFilter->getValue(ShortUrlsParamsInputFilter::TAGS_MODE) ?? self::TAGS_MODE_ANY;
     }
 
     public function page(): int
@@ -84,7 +91,7 @@ final class ShortUrlsParams
         return $this->tags;
     }
 
-    public function orderBy(): ShortUrlsOrdering
+    public function orderBy(): Ordering
     {
         return $this->orderBy;
     }
@@ -92,5 +99,13 @@ final class ShortUrlsParams
     public function dateRange(): ?DateRange
     {
         return $this->dateRange;
+    }
+
+    /**
+     * @return self::TAGS_MODE_ANY|self::TAGS_MODE_ALL
+     */
+    public function tagsMode(): string
+    {
+        return $this->tagsMode;
     }
 }

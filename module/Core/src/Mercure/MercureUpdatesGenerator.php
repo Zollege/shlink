@@ -8,30 +8,23 @@ use Shlinkio\Shlink\Common\Rest\DataTransformerInterface;
 use Shlinkio\Shlink\Core\Entity\Visit;
 use Symfony\Component\Mercure\Update;
 
-use function json_encode;
+use function Shlinkio\Shlink\Common\json_encode;
 use function sprintf;
-
-use const JSON_THROW_ON_ERROR;
 
 final class MercureUpdatesGenerator implements MercureUpdatesGeneratorInterface
 {
     private const NEW_VISIT_TOPIC = 'https://shlink.io/new-visit';
     private const NEW_ORPHAN_VISIT_TOPIC = 'https://shlink.io/new-orphan-visit';
 
-    private DataTransformerInterface $shortUrlTransformer;
-    private DataTransformerInterface $orphanVisitTransformer;
-
     public function __construct(
-        DataTransformerInterface $shortUrlTransformer,
-        DataTransformerInterface $orphanVisitTransformer
+        private DataTransformerInterface $shortUrlTransformer,
+        private DataTransformerInterface $orphanVisitTransformer,
     ) {
-        $this->shortUrlTransformer = $shortUrlTransformer;
-        $this->orphanVisitTransformer = $orphanVisitTransformer;
     }
 
     public function newVisitUpdate(Visit $visit): Update
     {
-        return new Update(self::NEW_VISIT_TOPIC, $this->serialize([
+        return new Update(self::NEW_VISIT_TOPIC, json_encode([
             'shortUrl' => $this->shortUrlTransformer->transform($visit->getShortUrl()),
             'visit' => $visit,
         ]));
@@ -39,7 +32,7 @@ final class MercureUpdatesGenerator implements MercureUpdatesGeneratorInterface
 
     public function newOrphanVisitUpdate(Visit $visit): Update
     {
-        return new Update(self::NEW_ORPHAN_VISIT_TOPIC, $this->serialize([
+        return new Update(self::NEW_ORPHAN_VISIT_TOPIC, json_encode([
             'visit' => $this->orphanVisitTransformer->transform($visit),
         ]));
     }
@@ -47,16 +40,11 @@ final class MercureUpdatesGenerator implements MercureUpdatesGeneratorInterface
     public function newShortUrlVisitUpdate(Visit $visit): Update
     {
         $shortUrl = $visit->getShortUrl();
-        $topic = sprintf('%s/%s', self::NEW_VISIT_TOPIC, $shortUrl->getShortCode());
+        $topic = sprintf('%s/%s', self::NEW_VISIT_TOPIC, $shortUrl?->getShortCode());
 
-        return new Update($topic, $this->serialize([
+        return new Update($topic, json_encode([
             'shortUrl' => $this->shortUrlTransformer->transform($shortUrl),
             'visit' => $visit,
         ]));
-    }
-
-    private function serialize(array $data): string
-    {
-        return json_encode($data, JSON_THROW_ON_ERROR);
     }
 }

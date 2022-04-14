@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkMigrations;
 
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Column;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\SchemaException;
@@ -35,11 +36,8 @@ final class Version20191020074522 extends AbstractMigration
         return $schema->getTable('short_urls')->getColumn('original_url');
     }
 
-    /**
-     * @fixme Workaround for https://github.com/doctrine/migrations/issues/1104
-     */
     public function isTransactional(): bool
     {
-        return false;
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

@@ -4,59 +4,55 @@ declare(strict_types=1);
 
 namespace Shlinkio\Shlink\Core\Repository;
 
+use Doctrine\DBAL\LockMode;
+use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use Doctrine\ORM\Query\Expr\Join;
 use Doctrine\ORM\QueryBuilder;
-use Happyr\DoctrineSpecification\EntitySpecificationRepository;
+use Happyr\DoctrineSpecification\Repository\EntitySpecificationRepository;
 use Happyr\DoctrineSpecification\Specification\Specification;
 use Shlinkio\Shlink\Common\Doctrine\Type\ChronosDateTimeType;
-use Shlinkio\Shlink\Common\Util\DateRange;
 use Shlinkio\Shlink\Core\Entity\ShortUrl;
+use Shlinkio\Shlink\Core\Model\Ordering;
+use Shlinkio\Shlink\Core\Model\ShortUrlIdentifier;
 use Shlinkio\Shlink\Core\Model\ShortUrlMeta;
-use Shlinkio\Shlink\Core\Model\ShortUrlsOrdering;
+use Shlinkio\Shlink\Core\Model\ShortUrlsParams;
+use Shlinkio\Shlink\Core\ShortUrl\Persistence\ShortUrlsCountFiltering;
+use Shlinkio\Shlink\Core\ShortUrl\Persistence\ShortUrlsListFiltering;
 use Shlinkio\Shlink\Importer\Model\ImportedShlinkUrl;
 
 use function array_column;
-use function array_key_exists;
 use function count;
 use function Functional\contains;
 
 class ShortUrlRepository extends EntitySpecificationRepository implements ShortUrlRepositoryInterface
 {
     /**
-     * @param string[] $tags
      * @return ShortUrl[]
      */
-    public function findList(
-        ?int $limit = null,
-        ?int $offset = null,
-        ?string $searchTerm = null,
-        array $tags = [],
-        ?ShortUrlsOrdering $orderBy = null,
-        ?DateRange $dateRange = null,
-        ?Specification $spec = null
-    ): array {
-        $qb = $this->createListQueryBuilder($searchTerm, $tags, $dateRange, $spec);
+    public function findList(ShortUrlsListFiltering $filtering): array
+    {
+        $qb = $this->createListQueryBuilder($filtering);
         $qb->select('DISTINCT s')
-           ->setMaxResults($limit)
-           ->setFirstResult($offset);
+           ->setMaxResults($filtering->limit())
+           ->setFirstResult($filtering->offset());
 
         // In case the ordering has been specified, the query could be more complex. Process it
-        if ($orderBy !== null && $orderBy->hasOrderField()) {
-            return $this->processOrderByForList($qb, $orderBy);
+        if ($filtering->orderBy()->hasOrderField()) {
+            return $this->processOrderByForList($qb, $filtering->orderBy());
         }
 
-        // With no order by, order by date and just return the list of ShortUrls
-        $qb->orderBy('s.dateCreated');
-        return $qb->getQuery()->getResult();
+        // With no explicit order by, fallback to dateCreated-DESC
+        return $qb->orderBy('s.dateCreated', 'DESC')->getQuery()->getResult();
     }
 
-    private function processOrderByForList(QueryBuilder $qb, ShortUrlsOrdering $orderBy): array
+    private function processOrderByForList(QueryBuilder $qb, Ordering $orderBy): array
     {
         $fieldName = $orderBy->orderField();
         $order = $orderBy->orderDirection();
 
-        // visitsCount and visitCount are deprecated. Only visits should work
-        if (contains(['visits', 'visitsCount', 'visitCount'], $fieldName)) {
+        if ($fieldName === 'visits') {
+            // FIXME This query is inefficient.
+            //       Diagnostic: It might need to use a sub-query, as done with the tags list query.
             $qb->addSelect('COUNT(DISTINCT v) AS totalVisits')
                ->leftJoin('s.visits', 'v')
                ->groupBy('s')
@@ -65,51 +61,40 @@ class ShortUrlRepository extends EntitySpecificationRepository implements ShortU
             return array_column($qb->getQuery()->getResult(), 0);
         }
 
-        // Map public field names to column names
-        $fieldNameMap = [
-            'originalUrl' => 'longUrl', // Deprecated
-            'longUrl' => 'longUrl',
-            'shortCode' => 'shortCode',
-            'dateCreated' => 'dateCreated',
-            'title' => 'title',
-        ];
-        if (array_key_exists($fieldName, $fieldNameMap)) {
-            $qb->orderBy('s.' . $fieldNameMap[$fieldName], $order);
+        $orderableFields = ['longUrl', 'shortCode', 'dateCreated', 'title'];
+        if (contains($orderableFields, $fieldName)) {
+            $qb->orderBy('s.' . $fieldName, $order);
         }
+
         return $qb->getQuery()->getResult();
     }
 
-    public function countList(
-        ?string $searchTerm = null,
-        array $tags = [],
-        ?DateRange $dateRange = null,
-        ?Specification $spec = null
-    ): int {
-        $qb = $this->createListQueryBuilder($searchTerm, $tags, $dateRange, $spec);
+    public function countList(ShortUrlsCountFiltering $filtering): int
+    {
+        $qb = $this->createListQueryBuilder($filtering);
         $qb->select('COUNT(DISTINCT s)');
 
         return (int) $qb->getQuery()->getSingleScalarResult();
     }
 
-    private function createListQueryBuilder(
-        ?string $searchTerm,
-        array $tags,
-        ?DateRange $dateRange,
-        ?Specification $spec
-    ): QueryBuilder {
+    private function createListQueryBuilder(ShortUrlsCountFiltering $filtering): QueryBuilder
+    {
         $qb = $this->getEntityManager()->createQueryBuilder();
         $qb->from(ShortUrl::class, 's')
            ->where('1=1');
 
-        if ($dateRange !== null && $dateRange->getStartDate() !== null) {
+        $dateRange = $filtering->dateRange();
+        if ($dateRange?->startDate() !== null) {
             $qb->andWhere($qb->expr()->gte('s.dateCreated', ':startDate'));
-            $qb->setParameter('startDate', $dateRange->getStartDate(), ChronosDateTimeType::CHRONOS_DATETIME);
+            $qb->setParameter('startDate', $dateRange->startDate(), ChronosDateTimeType::CHRONOS_DATETIME);
         }
-        if ($dateRange !== null && $dateRange->getEndDate() !== null) {
+        if ($dateRange?->endDate() !== null) {
             $qb->andWhere($qb->expr()->lte('s.dateCreated', ':endDate'));
-            $qb->setParameter('endDate', $dateRange->getEndDate(), ChronosDateTimeType::CHRONOS_DATETIME);
+            $qb->setParameter('endDate', $dateRange->endDate(), ChronosDateTimeType::CHRONOS_DATETIME);
         }
 
+        $searchTerm = $filtering->searchTerm();
+        $tags = $filtering->tags();
         // Apply search term to every searchable field if not empty
         if (! empty($searchTerm)) {
             // Left join with tags only if no tags were provided. In case of tags, an inner join will be done later
@@ -131,21 +116,23 @@ class ShortUrlRepository extends EntitySpecificationRepository implements ShortU
 
         // Filter by tags if provided
         if (! empty($tags)) {
-            $qb->join('s.tags', 't')
-               ->andWhere($qb->expr()->in('t.name', $tags));
+            $tagsMode = $filtering->tagsMode() ?? ShortUrlsParams::TAGS_MODE_ANY;
+            $tagsMode === ShortUrlsParams::TAGS_MODE_ANY
+                ? $qb->join('s.tags', 't')->andWhere($qb->expr()->in('t.name', $tags))
+                : $this->joinAllTags($qb, $tags);
         }
 
-        $this->applySpecification($qb, $spec, 's');
+        $this->applySpecification($qb, $filtering->apiKey()?->spec(), 's');
 
         return $qb;
     }
 
-    public function findOneWithDomainFallback(string $shortCode, ?string $domain = null): ?ShortUrl
+    public function findOneWithDomainFallback(ShortUrlIdentifier $identifier): ?ShortUrl
     {
         // When ordering DESC, Postgres puts nulls at the beginning while the rest of supported DB engines put them at
         // the bottom
-        $dbPlatform = $this->getEntityManager()->getConnection()->getDatabasePlatform()->getName();
-        $ordering = $dbPlatform === 'postgresql' ? 'ASC' : 'DESC';
+        $dbPlatform = $this->getEntityManager()->getConnection()->getDatabasePlatform();
+        $ordering = $dbPlatform instanceof PostgreSQLPlatform ? 'ASC' : 'DESC';
 
         $dql = <<<DQL
             SELECT s
@@ -159,8 +146,8 @@ class ShortUrlRepository extends EntitySpecificationRepository implements ShortU
         $query = $this->getEntityManager()->createQuery($dql);
         $query->setMaxResults(1)
               ->setParameters([
-                  'shortCode' => $shortCode,
-                  'domain' => $domain,
+                  'shortCode' => $identifier->shortCode(),
+                  'domain' => $identifier->domain(),
               ]);
 
         // Since we ordered by domain, we will have first the URL matching provided domain, followed by the one
@@ -172,32 +159,49 @@ class ShortUrlRepository extends EntitySpecificationRepository implements ShortU
         return $query->getOneOrNullResult();
     }
 
-    public function findOne(string $shortCode, ?string $domain = null, ?Specification $spec = null): ?ShortUrl
+    public function findOne(ShortUrlIdentifier $identifier, ?Specification $spec = null): ?ShortUrl
     {
-        $qb = $this->createFindOneQueryBuilder($shortCode, $domain, $spec);
+        $qb = $this->createFindOneQueryBuilder($identifier, $spec);
         $qb->select('s');
 
         return $qb->getQuery()->getOneOrNullResult();
     }
 
-    public function shortCodeIsInUse(string $slug, ?string $domain = null, ?Specification $spec = null): bool
+    public function shortCodeIsInUse(ShortUrlIdentifier $identifier, ?Specification $spec = null): bool
     {
-        $qb = $this->createFindOneQueryBuilder($slug, $domain, $spec);
-        $qb->select('COUNT(DISTINCT s.id)');
-
-        return ((int) $qb->getQuery()->getSingleScalarResult()) > 0;
+        return $this->doShortCodeIsInUse($identifier, $spec, null);
     }
 
-    private function createFindOneQueryBuilder(string $slug, ?string $domain, ?Specification $spec): QueryBuilder
+    public function shortCodeIsInUseWithLock(ShortUrlIdentifier $identifier, ?Specification $spec = null): bool
+    {
+        return $this->doShortCodeIsInUse($identifier, $spec, LockMode::PESSIMISTIC_WRITE);
+    }
+
+    /**
+     * @param LockMode::PESSIMISTIC_WRITE|null $lockMode
+     */
+    private function doShortCodeIsInUse(ShortUrlIdentifier $identifier, ?Specification $spec, ?int $lockMode): bool
+    {
+        $qb = $this->createFindOneQueryBuilder($identifier, $spec)->select('s.id');
+        $query = $qb->getQuery();
+
+        if ($lockMode !== null) {
+            $query = $query->setLockMode($lockMode);
+        }
+
+        return $query->getOneOrNullResult() !== null;
+    }
+
+    private function createFindOneQueryBuilder(ShortUrlIdentifier $identifier, ?Specification $spec): QueryBuilder
     {
         $qb = $this->getEntityManager()->createQueryBuilder();
         $qb->from(ShortUrl::class, 's')
            ->where($qb->expr()->isNotNull('s.shortCode'))
            ->andWhere($qb->expr()->eq('s.shortCode', ':slug'))
-           ->setParameter('slug', $slug)
+           ->setParameter('slug', $identifier->shortCode())
            ->setMaxResults(1);
 
-        $this->whereDomainIs($qb, $domain);
+        $this->whereDomainIs($qb, $identifier->domain());
 
         $this->applySpecification($qb, $spec, 's');
 
@@ -248,11 +252,7 @@ class ShortUrlRepository extends EntitySpecificationRepository implements ShortU
             return $qb->getQuery()->getOneOrNullResult();
         }
 
-        foreach ($tags as $index => $tag) {
-            $alias = 't_' . $index;
-            $qb->join('s.tags', $alias, Join::WITH, $alias . '.name = :tag' . $index)
-               ->setParameter('tag' . $index, $tag);
-        }
+        $this->joinAllTags($qb, $tags);
 
         // If tags where provided, we need an extra join to see the amount of tags that every short URL has, so that we
         // can discard those that also have more tags, making sure only those fully matching are included.
@@ -264,12 +264,19 @@ class ShortUrlRepository extends EntitySpecificationRepository implements ShortU
         return $qb->getQuery()->getOneOrNullResult();
     }
 
-    public function importedUrlExists(ImportedShlinkUrl $url): bool
+    private function joinAllTags(QueryBuilder $qb, array $tags): void
     {
-        $qb = $this->getEntityManager()->createQueryBuilder();
-        $qb->select('COUNT(DISTINCT s.id)')
-           ->from(ShortUrl::class, 's')
-           ->andWhere($qb->expr()->eq('s.importOriginalShortCode', ':shortCode'))
+        foreach ($tags as $index => $tag) {
+            $alias = 't_' . $index;
+            $qb->join('s.tags', $alias, Join::WITH, $alias . '.name = :tag' . $index)
+               ->setParameter('tag' . $index, $tag);
+        }
+    }
+
+    public function findOneByImportedUrl(ImportedShlinkUrl $url): ?ShortUrl
+    {
+        $qb = $this->createQueryBuilder('s');
+        $qb->andWhere($qb->expr()->eq('s.importOriginalShortCode', ':shortCode'))
            ->setParameter('shortCode', $url->shortCode())
            ->andWhere($qb->expr()->eq('s.importSource', ':importSource'))
            ->setParameter('importSource', $url->source())
@@ -277,8 +284,7 @@ class ShortUrlRepository extends EntitySpecificationRepository implements ShortU
 
         $this->whereDomainIs($qb, $url->domain());
 
-        $result = (int) $qb->getQuery()->getSingleScalarResult();
-        return $result > 0;
+        return $qb->getQuery()->getOneOrNullResult();
     }
 
     private function whereDomainIs(QueryBuilder $qb, ?string $domain): void
@@ -290,5 +296,29 @@ class ShortUrlRepository extends EntitySpecificationRepository implements ShortU
         } else {
             $qb->andWhere($qb->expr()->isNull('s.domain'));
         }
+    }
+
+    public function findCrawlableShortCodes(): iterable
+    {
+        $blockSize = 1000;
+        $qb = $this->getEntityManager()->createQueryBuilder();
+        $qb->select('DISTINCT s.shortCode')
+           ->from(ShortUrl::class, 's')
+           ->where($qb->expr()->eq('s.crawlable', ':crawlable'))
+           ->setParameter('crawlable', true)
+           ->setMaxResults($blockSize);
+
+        $page = 0;
+        do {
+            $qbClone = (clone $qb)->setFirstResult($blockSize * $page);
+            $iterator = $qbClone->getQuery()->toIterable();
+            $resultsFound = false;
+            $page++;
+
+            foreach ($iterator as ['shortCode' => $shortCode]) {
+                $resultsFound = true;
+                yield $shortCode;
+            }
+        } while ($resultsFound);
     }
 }

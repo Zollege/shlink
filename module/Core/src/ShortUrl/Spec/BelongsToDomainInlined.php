@@ -5,24 +5,18 @@ declare(strict_types=1);
 namespace Shlinkio\Shlink\Core\ShortUrl\Spec;
 
 use Doctrine\ORM\QueryBuilder;
-use Happyr\DoctrineSpecification\Specification\Specification;
+use Happyr\DoctrineSpecification\Filter\Filter;
 
-class BelongsToDomainInlined implements Specification
+class BelongsToDomainInlined implements Filter
 {
-    private string $domainId;
-
-    public function __construct(string $domainId)
+    public function __construct(private string $domainId)
     {
-        $this->domainId = $domainId;
     }
 
-    public function getFilter(QueryBuilder $qb, string $dqlAlias): string
+    public function getFilter(QueryBuilder $qb, string $context): string
     {
         // Parameters in this query need to be inlined, not bound, as we need to use it as sub-query later
-        return (string) $qb->expr()->eq('s.domain', '\'' . $this->domainId . '\'');
-    }
-
-    public function modify(QueryBuilder $qb, string $dqlAlias): void
-    {
+        $conn = $qb->getEntityManager()->getConnection();
+        return $qb->expr()->eq('s.domain', $conn->quote($this->domainId))->__toString();
     }
 }

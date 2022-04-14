@@ -5,18 +5,20 @@ declare(strict_types=1);
 namespace ShlinkioTest\Shlink\CLI\Command\Domain;
 
 use PHPUnit\Framework\TestCase;
-use Prophecy\PhpUnit\ProphecyTrait;
 use Prophecy\Prophecy\ObjectProphecy;
 use Shlinkio\Shlink\CLI\Command\Domain\ListDomainsCommand;
 use Shlinkio\Shlink\CLI\Util\ExitCodes;
+use Shlinkio\Shlink\Core\Config\NotFoundRedirects;
 use Shlinkio\Shlink\Core\Domain\DomainServiceInterface;
 use Shlinkio\Shlink\Core\Domain\Model\DomainItem;
-use Symfony\Component\Console\Application;
+use Shlinkio\Shlink\Core\Entity\Domain;
+use Shlinkio\Shlink\Core\Options\NotFoundRedirectOptions;
+use ShlinkioTest\Shlink\CLI\CliTestUtilsTrait;
 use Symfony\Component\Console\Tester\CommandTester;
 
 class ListDomainsCommandTest extends TestCase
 {
-    use ProphecyTrait;
+    use CliTestUtilsTrait;
 
     private CommandTester $commandTester;
     private ObjectProphecy $domainService;
@@ -24,18 +26,41 @@ class ListDomainsCommandTest extends TestCase
     public function setUp(): void
     {
         $this->domainService = $this->prophesize(DomainServiceInterface::class);
-
-        $command = new ListDomainsCommand($this->domainService->reveal());
-        $app = new Application();
-        $app->add($command);
-
-        $this->commandTester = new CommandTester($command);
+        $this->commandTester = $this->testerForCommand(new ListDomainsCommand($this->domainService->reveal()));
     }
 
-    /** @test */
-    public function allDomainsAreProperlyPrinted(): void
+    /**
+     * @test
+     * @dataProvider provideInputsAndOutputs
+     */
+    public function allDomainsAreProperlyPrinted(array $input, string $expectedOutput): void
     {
-        $expectedOutput = <<<OUTPUT
+        $bazDomain = Domain::withAuthority('baz.com');
+        $bazDomain->configureNotFoundRedirects(NotFoundRedirects::withRedirects(
+            null,
+            'https://foo.com/baz-domain/regular',
+            'https://foo.com/baz-domain/invalid',
+        ));
+
+        $listDomains = $this->domainService->listDomains()->willReturn([
+            DomainItem::forDefaultDomain('foo.com', new NotFoundRedirectOptions([
+                'base_url' => 'https://foo.com/default/base',
+                'invalid_short_url' => 'https://foo.com/default/invalid',
+            ])),
+            DomainItem::forNonDefaultDomain(Domain::withAuthority('bar.com')),
+            DomainItem::forNonDefaultDomain($bazDomain),
+        ]);
+
+        $this->commandTester->execute($input);
+
+        self::assertEquals($expectedOutput, $this->commandTester->getDisplay());
+        self::assertEquals(ExitCodes::EXIT_SUCCESS, $this->commandTester->getStatusCode());
+        $listDomains->shouldHaveBeenCalledOnce();
+    }
+
+    public function provideInputsAndOutputs(): iterable
+    {
+        $withoutRedirectsOutput = <<<OUTPUT
         +---------+------------+
         | Domain  | Is default |
         +---------+------------+
@@ -45,16 +70,27 @@ class ListDomainsCommandTest extends TestCase
         +---------+------------+
 
         OUTPUT;
-        $listDomains = $this->domainService->listDomains()->willReturn([
-            new DomainItem('foo.com', true),
-            new DomainItem('bar.com', false),
-            new DomainItem('baz.com', false),
-        ]);
+        $withRedirectsOutput = <<<OUTPUT
+        +---------+------------+---------------------------------------------------------+
+        | Domain  | Is default | "Not found" redirects                                   |
+        +---------+------------+---------------------------------------------------------+
+        | foo.com | Yes        | * Base URL: https://foo.com/default/base                |
+        |         |            | * Regular 404: N/A                                      |
+        |         |            | * Invalid short URL: https://foo.com/default/invalid    |
+        +---------+------------+---------------------------------------------------------+
+        | bar.com | No         | * Base URL: N/A                                         |
+        |         |            | * Regular 404: N/A                                      |
+        |         |            | * Invalid short URL: N/A                                |
+        +---------+------------+---------------------------------------------------------+
+        | baz.com | No         | * Base URL: N/A                                         |
+        |         |            | * Regular 404: https://foo.com/baz-domain/regular       |
+        |         |            | * Invalid short URL: https://foo.com/baz-domain/invalid |
+        +---------+------------+---------------------------------------------------------+
 
-        $this->commandTester->execute([]);
+        OUTPUT;
 
-        self::assertEquals($expectedOutput, $this->commandTester->getDisplay());
-        self::assertEquals(ExitCodes::EXIT_SUCCESS, $this->commandTester->getStatusCode());
-        $listDomains->shouldHaveBeenCalledOnce();
+        yield 'no args' => [[], $withoutRedirectsOutput];
+        yield 'no show redirects' => [['--show-redirects' => false], $withoutRedirectsOutput];
+        yield 'show redirects' => [['--show-redirects' => true], $withRedirectsOutput];
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkMigrations;
 
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\Migrations\AbstractMigration;
@@ -34,11 +35,8 @@ final class Version20210202181026 extends AbstractMigration
         $shortUrls->dropColumn('title_was_auto_resolved');
     }
 
-    /**
-     * @fixme Workaround for https://github.com/doctrine/migrations/issues/1104
-     */
     public function isTransactional(): bool
     {
-        return false;
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

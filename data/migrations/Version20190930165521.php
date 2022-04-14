@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShlinkMigrations;
 
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\SchemaException;
 use Doctrine\DBAL\Types\Types;
@@ -53,11 +54,8 @@ final class Version20190930165521 extends AbstractMigration
         $schema->dropTable('domains');
     }
 
-    /**
-     * @fixme Workaround for https://github.com/doctrine/migrations/issues/1104
-     */
     public function isTransactional(): bool
     {
-        return false;
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

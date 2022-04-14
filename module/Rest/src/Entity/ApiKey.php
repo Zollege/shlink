@@ -12,6 +12,7 @@ use Happyr\DoctrineSpecification\Spec;
 use Happyr\DoctrineSpecification\Specification\Specification;
 use Ramsey\Uuid\Uuid;
 use Shlinkio\Shlink\Common\Entity\AbstractEntity;
+use Shlinkio\Shlink\Rest\ApiKey\Model\ApiKeyMeta;
 use Shlinkio\Shlink\Rest\ApiKey\Model\RoleDefinition;
 use Shlinkio\Shlink\Rest\ApiKey\Role;
 
@@ -22,33 +23,31 @@ class ApiKey extends AbstractEntity
     private bool $enabled;
     /** @var Collection|ApiKeyRole[] */
     private Collection $roles;
+    private ?string $name;
 
     /**
      * @throws Exception
      */
-    public function __construct(?Chronos $expirationDate = null)
+    private function __construct(?string $name = null, ?Chronos $expirationDate = null)
     {
         $this->key = Uuid::uuid4()->toString();
         $this->expirationDate = $expirationDate;
+        $this->name = $name;
         $this->enabled = true;
         $this->roles = new ArrayCollection();
     }
 
-    public static function withRoles(RoleDefinition ...$roleDefinitions): self
+    public static function create(): ApiKey
     {
-        $apiKey = new self();
-
-        foreach ($roleDefinitions as $roleDefinition) {
-            $apiKey->registerRole($roleDefinition);
-        }
-
-        return $apiKey;
+        return new self();
     }
 
-    public static function withKey(string $key, ?Chronos $expirationDate = null): self
+    public static function fromMeta(ApiKeyMeta $meta): self
     {
-        $apiKey = new self($expirationDate);
-        $apiKey->key = $key;
+        $apiKey = new self($meta->name(), $meta->expirationDate());
+        foreach ($meta->roleDefinitions() as $roleDefinition) {
+            $apiKey->registerRole($roleDefinition);
+        }
 
         return $apiKey;
     }
@@ -61,6 +60,11 @@ class ApiKey extends AbstractEntity
     public function isExpired(): bool
     {
         return $this->expirationDate !== null && $this->expirationDate->lt(Chronos::now());
+    }
+
+    public function name(): ?string
+    {
+        return $this->name;
     }
 
     public function isEnabled(): bool
@@ -92,9 +96,15 @@ class ApiKey extends AbstractEntity
         return $this->key;
     }
 
-    public function spec(bool $inlined = false): Specification
+    public function spec(?string $context = null): Specification
     {
-        $specs = $this->roles->map(fn (ApiKeyRole $role) => Role::toSpec($role, $inlined))->getValues();
+        $specs = $this->roles->map(fn (ApiKeyRole $role) => Role::toSpec($role, $context))->getValues();
+        return Spec::andX(...$specs);
+    }
+
+    public function inlinedSpec(): Specification
+    {
+        $specs = $this->roles->map(fn (ApiKeyRole $role) => Role::toInlinedSpec($role))->getValues();
         return Spec::andX(...$specs);
     }
 
@@ -112,9 +122,14 @@ class ApiKey extends AbstractEntity
     {
         /** @var ApiKeyRole|null $role */
         $role = $this->roles->get($roleName);
-        return $role === null ? [] : $role->meta();
+        return $role?->meta() ?? [];
     }
 
+    /**
+     * @template T
+     * @param callable(string $roleName, array $meta): T $fun
+     * @return T[]
+     */
     public function mapRoles(callable $fun): array
     {
         return $this->roles->map(fn (ApiKeyRole $role) => $fun($role->name(), $role->meta()))->getValues();

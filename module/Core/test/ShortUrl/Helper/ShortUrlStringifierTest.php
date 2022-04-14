@@ -19,7 +19,7 @@ class ShortUrlStringifierTest extends TestCase
         array $config,
         string $basePath,
         ShortUrl $shortUrl,
-        string $expected
+        string $expected,
     ): void {
         $stringifier = new ShortUrlStringifier($config, $basePath);
 
@@ -42,6 +42,18 @@ class ShortUrlStringifierTest extends TestCase
             '',
             $shortUrlWithShortCode('bar'),
             'http://example.com/bar',
+        ];
+        yield 'special chars in short code' => [
+            ['hostname' => 'example.com'],
+            '',
+            $shortUrlWithShortCode('グーグル'),
+            'http://example.com/グーグル',
+        ];
+        yield 'emojis in short code' => [
+            ['hostname' => 'example.com'],
+            '',
+            $shortUrlWithShortCode('🦣-🍅'),
+            'http://example.com/🦣-🍅',
         ];
         yield 'hostname with base path in config' => [
             ['hostname' => 'example.com/foo/bar'],

@@ -24,7 +24,7 @@ interface VisitsStatsHelperInterface
     public function visitsForShortUrl(
         ShortUrlIdentifier $identifier,
         VisitsParams $params,
-        ?ApiKey $apiKey = null
+        ?ApiKey $apiKey = null,
     ): Paginator;
 
     /**
@@ -37,4 +37,9 @@ interface VisitsStatsHelperInterface
      * @return Visit[]|Paginator
      */
     public function orphanVisits(VisitsParams $params): Paginator;
+
+    /**
+     * @return Visit[]|Paginator
+     */
+    public function nonOrphanVisits(VisitsParams $params, ?ApiKey $apiKey = null): Paginator;
 }

@@ -8,17 +8,21 @@ use GuzzleHttp\Client;
 use Laminas\ConfigAggregator\ConfigAggregator;
 use Laminas\Diactoros\Response\EmptyResponse;
 use Laminas\ServiceManager\Factory\InvokableFactory;
-use Laminas\Stdlib\Glob;
-use PDO;
+use Monolog\Handler\StreamHandler;
+use Monolog\Logger;
 use PHPUnit\Runner\Version;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use SebastianBergmann\CodeCoverage\CodeCoverage;
 use SebastianBergmann\CodeCoverage\Driver\Selector;
 use SebastianBergmann\CodeCoverage\Filter;
+use SebastianBergmann\CodeCoverage\Report\Html\Facade as Html;
 use SebastianBergmann\CodeCoverage\Report\PHP;
 use SebastianBergmann\CodeCoverage\Report\Xml\Facade as Xml;
 
 use function Laminas\Stratigility\middleware;
-use function Shlinkio\Shlink\Common\env;
+use function Shlinkio\Shlink\Config\env;
 use function sprintf;
 use function sys_get_temp_dir;
 
@@ -26,37 +30,23 @@ use const ShlinkioTest\Shlink\SWOOLE_TESTING_HOST;
 use const ShlinkioTest\Shlink\SWOOLE_TESTING_PORT;
 
 $isApiTest = env('TEST_ENV') === 'api';
-if ($isApiTest) {
+$generateCoverage = env('GENERATE_COVERAGE') === 'yes';
+if ($isApiTest && $generateCoverage) {
     $filter = new Filter();
-    foreach (Glob::glob(__DIR__ . '/../../module/*/src') as $item) {
-        $filter->includeDirectory($item);
-    }
+    $filter->includeDirectory(__DIR__ . '/../../module/Core/src');
+    $filter->includeDirectory(__DIR__ . '/../../module/Rest/src');
     $coverage = new CodeCoverage((new Selector())->forLineCoverage($filter), $filter);
 }
 
-$buildDbConnection = function (): array {
+$buildDbConnection = static function (): array {
     $driver = env('DB_DRIVER', 'sqlite');
     $isCi = env('CI', false);
-    $getMysqlHost = fn (string $driver) => sprintf('shlink_db%s', $driver === 'mysql' ? '' : '_maria');
-    $getCiMysqlPort = fn (string $driver) => $driver === 'mysql' ? '3307' : '3308';
+    $getCiMysqlPort = static fn (string $driver) => $driver === 'mysql' ? '3307' : '3308';
 
-    $driverConfigMap = [
+    return match ($driver) {
         'sqlite' => [
             'driver' => 'pdo_sqlite',
             'path' => sys_get_temp_dir() . '/shlink-tests.db',
-        ],
-        'mysql' => [
-            'driver' => 'pdo_mysql',
-            'host' => $isCi ? '127.0.0.1' : $getMysqlHost($driver),
-            'port' => $isCi ? $getCiMysqlPort($driver) : '3306',
-            'user' => 'root',
-            'password' => 'root',
-            'dbname' => 'shlink_test',
-            'charset' => 'utf8',
-            'driverOptions' => [
-                PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8',
-                PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
-            ],
         ],
         'postgres' => [
             'driver' => 'pdo_pgsql',
@@ -74,11 +64,29 @@ $buildDbConnection = function (): array {
             'password' => 'Passw0rd!',
             'dbname' => 'shlink_test',
         ],
-    ];
-    $driverConfigMap['maria'] = $driverConfigMap['mysql'];
-
-    return $driverConfigMap[$driver] ?? [];
+        default => [ // mysql and maria
+            'driver' => 'pdo_mysql',
+            'host' => $isCi ? '127.0.0.1' : sprintf('shlink_db_%s', $driver),
+            'port' => $isCi ? $getCiMysqlPort($driver) : '3306',
+            'user' => 'root',
+            'password' => 'root',
+            'dbname' => 'shlink_test',
+            'charset' => 'utf8mb4',
+        ],
+    };
 };
+
+$buildTestLoggerConfig = fn (string $handlerName, string $filename) => [
+    'handlers' => [
+        $handlerName => [
+            'name' => StreamHandler::class,
+            'params' => [
+                'level' => Logger::DEBUG,
+                'stream' => sprintf('data/log/api-tests/%s', $filename),
+            ],
+        ],
+    ],
+];
 
 return [
 
@@ -101,6 +109,7 @@ return [
             'process-name' => 'shlink_test',
             'options' => [
                 'pid_file' => sys_get_temp_dir() . '/shlink-test-swoole.pid',
+                'log_file' => __DIR__ . '/../../data/log/api-tests/output.log',
                 'enable_coroutine' => false,
             ],
         ],
@@ -108,30 +117,40 @@ return [
 
     'routes' => !$isApiTest ? [] : [
         [
-            'name' => 'start_collecting_coverage',
-            'path' => '/api-tests/start-coverage',
-            'middleware' => middleware(static function () use (&$coverage) {
-                if ($coverage) {
-                    $coverage->start('API tests');
-                }
-                return new EmptyResponse();
-            }),
-            'allowed_methods' => ['GET'],
-        ],
-        [
             'name' => 'dump_coverage',
             'path' => '/api-tests/stop-coverage',
             'middleware' => middleware(static function () use (&$coverage) {
-                if ($coverage) {
+                // TODO I have tried moving this block to a listener so that it's invoked automatically,
+                //      but then the coverage is generated empty ¯\_(ツ)_/¯
+                if ($coverage) { // @phpstan-ignore-line
                     $basePath = __DIR__ . '/../../build/coverage-api';
-                    $coverage->stop();
+
                     (new PHP())->process($coverage, $basePath . '.cov');
                     (new Xml(Version::getVersionString()))->process($coverage, $basePath . '/coverage-xml');
+                    (new Html())->process($coverage, $basePath . '/coverage-html');
                 }
 
                 return new EmptyResponse();
             }),
             'allowed_methods' => ['GET'],
+        ],
+    ],
+
+    'middleware_pipeline' => !$isApiTest ? [] : [
+        'capture_code_coverage' => [
+            'middleware' => middleware(static function (
+                ServerRequestInterface $req,
+                RequestHandlerInterface $handler,
+            ) use (&$coverage): ResponseInterface {
+                $coverage?->start($req->getHeaderLine('x-coverage-id'));
+
+                try {
+                    return $handler->handle($req);
+                } finally {
+                    $coverage?->stop();
+                }
+            }),
+            'priority' => 9999,
         ],
     ],
 
@@ -161,6 +180,11 @@ return [
         'paths' => [
             __DIR__ . '/../../module/Rest/test-api/Fixtures',
         ],
+    ],
+
+    'logger' => [
+        'Shlink' => $buildTestLoggerConfig('shlink_handler', 'shlink.log'),
+        'Access' => $buildTestLoggerConfig('access_handler', 'access.log'),
     ],
 
 ];

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ShlinkMigrations;
 
 use Doctrine\DBAL\Exception;
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 use PDO;
@@ -57,7 +58,7 @@ final class Version20180913205455 extends AbstractMigration
 
         try {
             return (string) IpAddress::fromString($addr)->getAnonymizedCopy();
-        } catch (InvalidArgumentException $e) {
+        } catch (InvalidArgumentException) {
             return null;
         }
     }
@@ -67,11 +68,8 @@ final class Version20180913205455 extends AbstractMigration
         // Nothing to rollback
     }
 
-    /**
-     * @fixme Workaround for https://github.com/doctrine/migrations/issues/1104
-     */
     public function isTransactional(): bool
     {
-        return false;
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

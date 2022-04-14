@@ -17,14 +17,14 @@ return [
         'error-handler' => [
             'middleware' => [
                 ContentLengthMiddleware::class,
+                RequestIdMiddleware::class,
                 ErrorHandler::class,
+                Rest\Middleware\CrossDomainMiddleware::class,
             ],
         ],
         'error-handler-rest' => [
             'path' => '/rest',
             'middleware' => [
-                Rest\Middleware\CrossDomainMiddleware::class,
-                RequestIdMiddleware::class,
                 ProblemDetails\ProblemDetailsMiddleware::class,
             ],
         ],
@@ -68,6 +68,7 @@ return [
                 // This middleware is in front of tracking actions explicitly. Putting here for orphan visits tracking
                 IpAddress::class,
                 Core\ErrorHandler\NotFoundTypeResolverMiddleware::class,
+                Core\ShortUrl\Middleware\ExtraPathRedirectMiddleware::class,
                 Core\ErrorHandler\NotFoundTrackerMiddleware::class,
                 Core\ErrorHandler\NotFoundRedirectHandler::class,
                 Core\ErrorHandler\NotFoundTemplateHandler::class,

@@ -50,9 +50,19 @@
                 }
             },
             {
+                "name": "tagsMode",
+                "in": "query",
+                "description": "Tells how the filtering by tags should work, returning short URLs containing \"any\" of the tags, or \"all\" the tags. It's ignored if no tags are provided, and defaults to \"any\" if not provided.",
+                "required": false,
+                "schema": {
+                    "type": "string",
+                    "enum": ["any", "all"]
+                }
+            },
+            {
                 "name": "orderBy",
                 "in": "query",
-                "description": "The field from which you want to order the result. (Since v1.3.0)",
+                "description": "The field from which you want to order the result.",
                 "required": false,
                 "schema": {
                     "type": "string",
@@ -117,76 +127,77 @@
                                     }
                                 }
                             }
-                        }
-                    }
-                },
-                "examples": {
-                    "application/json": {
-                        "shortUrls": {
-                            "data": [
-                                {
-                                    "shortCode": "12C18",
-                                    "shortUrl": "https://doma.in/12C18",
-                                    "longUrl": "https://store.steampowered.com",
-                                    "dateCreated": "2016-08-21T20:34:16+02:00",
-                                    "visitsCount": 328,
-                                    "tags": [
-                                        "games",
-                                        "tech"
-                                    ],
-                                    "meta": {
-                                        "validSince": "2017-01-21T00:00:00+02:00",
-                                        "validUntil": null,
-                                        "maxVisits": 100
+                        },
+                        "example": {
+                            "shortUrls": {
+                                "data": [
+                                    {
+                                        "shortCode": "12C18",
+                                        "shortUrl": "https://doma.in/12C18",
+                                        "longUrl": "https://store.steampowered.com",
+                                        "dateCreated": "2016-08-21T20:34:16+02:00",
+                                        "visitsCount": 328,
+                                        "tags": [
+                                            "games",
+                                            "tech"
+                                        ],
+                                        "meta": {
+                                            "validSince": "2017-01-21T00:00:00+02:00",
+                                            "validUntil": null,
+                                            "maxVisits": 100
+                                        },
+                                        "domain": null,
+                                        "title": "Welcome to Steam",
+                                        "crawlable": false
                                     },
-                                    "domain": null,
-                                    "title": "Welcome to Steam"
-                                },
-                                {
-                                    "shortCode": "12Kb3",
-                                    "shortUrl": "https://doma.in/12Kb3",
-                                    "longUrl": "https://shlink.io",
-                                    "dateCreated": "2016-05-01T20:34:16+02:00",
-                                    "visitsCount": 1029,
-                                    "tags": [
-                                        "shlink"
-                                    ],
-                                    "meta": {
-                                        "validSince": null,
-                                        "validUntil": null,
-                                        "maxVisits": null
+                                    {
+                                        "shortCode": "12Kb3",
+                                        "shortUrl": "https://doma.in/12Kb3",
+                                        "longUrl": "https://shlink.io",
+                                        "dateCreated": "2016-05-01T20:34:16+02:00",
+                                        "visitsCount": 1029,
+                                        "tags": [
+                                            "shlink"
+                                        ],
+                                        "meta": {
+                                            "validSince": null,
+                                            "validUntil": null,
+                                            "maxVisits": null
+                                        },
+                                        "domain":  null,
+                                        "title": null,
+                                        "crawlable": false
                                     },
-                                    "domain":  null,
-                                    "title": null
-                                },
-                                {
-                                    "shortCode": "123bA",
-                                    "shortUrl": "https://example.com/123bA",
-                                    "longUrl": "https://www.google.com",
-                                    "dateCreated": "2015-10-01T20:34:16+02:00",
-                                    "visitsCount": 25,
-                                    "tags": [],
-                                    "meta": {
-                                        "validSince": "2017-01-21T00:00:00+02:00",
-                                        "validUntil": null,
-                                        "maxVisits": null
-                                    },
-                                    "domain":  "example.com",
-                                    "title": null
+                                    {
+                                        "shortCode": "123bA",
+                                        "shortUrl": "https://example.com/123bA",
+                                        "longUrl": "https://www.google.com",
+                                        "dateCreated": "2015-10-01T20:34:16+02:00",
+                                        "visitsCount": 25,
+                                        "tags": [],
+                                        "meta": {
+                                            "validSince": "2017-01-21T00:00:00+02:00",
+                                            "validUntil": null,
+                                            "maxVisits": null
+                                        },
+                                        "domain":  "example.com",
+                                        "title": null,
+                                        "crawlable": false
+                                    }
+                                ],
+                                "pagination": {
+                                    "currentPage": 5,
+                                    "pagesCount": 12,
+                                    "itemsPerPage": 10,
+                                    "itemsInCurrentPage": 10,
+                                    "totalItems": 115
                                 }
-                            ],
-                            "pagination": {
-                                "currentPage": 5,
-                                "pagesCount": 12,
-                                "itemsPerPage": 10,
-                                "itemsInCurrentPage": 10,
-                                "totalItems": 115
                             }
                         }
                     }
                 }
             },
-            "500": {
+            "default": {
                 "description": "Unexpected error.",
                 "content": {
                     "application/problem+json": {
@@ -222,59 +233,37 @@
             "content": {
                 "application/json": {
                     "schema": {
-                        "type": "object",
-                        "required": [
-                            "longUrl"
-                        ],
-                        "properties": {
-                            "longUrl": {
-                                "description": "The URL to parse",
-                                "type": "string"
+                        "allOf": [
+                            {
+                                "$ref": "../definitions/ShortUrlEdition.json"
                             },
-                            "tags": {
-                                "description": "The URL to parse",
-                                "type": "array",
-                                "items": {
-                                    "type": "string"
+                            {
+                                "type": "object",
+                                "required": ["longUrl"],
+                                "properties": {
+                                    "customSlug": {
+                                        "description": "A unique custom slug to be used instead of the generated short code",
+                                        "type": "string"
+                                    },
+                                    "findIfExists": {
+                                        "description": "Will force existing matching URL to be returned if found, instead of creating a new one",
+                                        "type": "boolean"
+                                    },
+                                    "domain": {
+                                        "description": "The domain to which the short URL will be attached",
+                                        "type": "string"
+                                    },
+                                    "shortCodeLength": {
+                                        "description": "The length for generated short code. It has to be at least 4 and defaults to 5. It will be ignored when customSlug is provided",
+                                        "type": "number"
+                                    },
+                                    "validateUrl": {
+                                        "description": "Tells if the long URL should or should not be validated as a reachable URL. If not provided, it will fall back to app-level config",
+                                        "type": "boolean"
+                                    }
                                 }
-                            },
-                            "validSince": {
-                                "description": "The date (in ISO-8601 format) from which this short code will be valid",
-                                "type": "string"
-                            },
-                            "validUntil": {
-                                "description": "The date (in ISO-8601 format) until which this short code will be valid",
-                                "type": "string"
-                            },
-                            "customSlug": {
-                                "description": "A unique custom slug to be used instead of the generated short code",
-                                "type": "string"
-                            },
-                            "maxVisits": {
-                                "description": "The maximum number of allowed visits for this short code",
-                                "type": "number"
-                            },
-                            "findIfExists": {
-                                "description": "Will force existing matching URL to be returned if found, instead of creating a new one",
-                                "type": "boolean"
-                            },
-                            "domain": {
-                                "description": "The domain to which the short URL will be attached",
-                                "type": "string"
-                            },
-                            "shortCodeLength": {
-                                "description": "The length for generated short code. It has to be at least 4 and defaults to 5. It will be ignored when customSlug is provided",
-                                "type": "number"
-                            },
-                            "validateUrl": {
-                                "description": "Tells if the long URL should or should not be validated as a reachable URL. If not provided, it will fall back to app-level config",
-                                "type": "boolean"
-                            },
-                            "title": {
-                                "type": "string",
-                                "description": "A descriptive title of the short URL."
                             }
-                        }
+                        ]
                     }
                 }
             }
@@ -286,26 +275,26 @@
                     "application/json": {
                         "schema": {
                             "$ref": "../definitions/ShortUrl.json"
-                        }
-                    }
-                },
-                "examples": {
-                    "application/json": {
-                        "shortCode": "12C18",
-                        "shortUrl": "https://doma.in/12C18",
-                        "longUrl": "https://store.steampowered.com",
-                        "dateCreated": "2016-08-21T20:34:16+02:00",
-                        "visitsCount": 0,
-                        "tags": [
-                            "games",
-                            "tech"
-                        ],
-                        "meta": {
-                            "validSince": "2017-01-21T00:00:00+02:00",
-                            "validUntil": null,
-                            "maxVisits": 500
                         },
-                        "domain": null
+                        "example": {
+                            "shortCode": "12C18",
+                            "shortUrl": "https://doma.in/12C18",
+                            "longUrl": "https://store.steampowered.com",
+                            "dateCreated": "2016-08-21T20:34:16+02:00",
+                            "visitsCount": 0,
+                            "tags": [
+                                "games",
+                                "tech"
+                            ],
+                            "meta": {
+                                "validSince": "2017-01-21T00:00:00+02:00",
+                                "validUntil": null,
+                                "maxVisits": 500
+                            },
+                            "domain": null,
+                            "title": null,
+                            "crawlable": false
+                        }
                     }
                 }
             },
@@ -343,15 +332,42 @@
                                         "customSlug": {
                                             "type": "string",
                                             "description": "Provided custom slug when the error type is INVALID_SLUG"
+                                        },
+                                        "domain": {
+                                            "type": "string",
+                                            "description": "The domain for which you were trying to create the new short URL"
                                         }
                                     }
                                 }
                             ]
+                        },
+                        "examples": {
+                            "Invalid arguments": {
+                                "$ref": "../examples/short-url-invalid-args.json"
+                            },
+                            "Invalid long URL": {
+                                "value": {
+                                    "title": "Invalid URL",
+                                    "type": "INVALID_URL",
+                                    "detail": "Provided URL foo is invalid. Try with a different one.",
+                                    "status": 400,
+                                    "url": "https://invalid-url.com"
+                                }
+                            },
+                            "Non-unique slug": {
+                                "value": {
+                                    "title": "Invalid custom slug",
+                                    "type": "INVALID_SLUG",
+                                    "detail": "Provided slug \"my-slug\" is already in use.",
+                                    "status": 400,
+                                    "customSlug": "my-slug"
+                                }
+                            }
                         }
                     }
                 }
             },
-            "500": {
+            "default": {
                 "description": "Unexpected error.",
                 "content": {
                     "application/problem+json": {

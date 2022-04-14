@@ -21,18 +21,22 @@ class Role
         self::DOMAIN_SPECIFIC => 'Domain only',
     ];
 
-    public static function toSpec(ApiKeyRole $role, bool $inlined): Specification
+    public static function toSpec(ApiKeyRole $role, ?string $context = null): Specification
     {
-        if ($role->name() === self::AUTHORED_SHORT_URLS) {
-            return $inlined ? new BelongsToApiKeyInlined($role->apiKey()) : new BelongsToApiKey($role->apiKey());
-        }
+        return match ($role->name()) {
+            self::AUTHORED_SHORT_URLS => new BelongsToApiKey($role->apiKey(), $context),
+            self::DOMAIN_SPECIFIC => new BelongsToDomain(self::domainIdFromMeta($role->meta()), $context),
+            default => Spec::andX(),
+        };
+    }
 
-        if ($role->name() === self::DOMAIN_SPECIFIC) {
-            $domainId = self::domainIdFromMeta($role->meta());
-            return $inlined ? new BelongsToDomainInlined($domainId) : new BelongsToDomain($domainId);
-        }
-
-        return Spec::andX();
+    public static function toInlinedSpec(ApiKeyRole $role): Specification
+    {
+        return match ($role->name()) {
+            self::AUTHORED_SHORT_URLS => Spec::andX(new BelongsToApiKeyInlined($role->apiKey())),
+            self::DOMAIN_SPECIFIC => Spec::andX(new BelongsToDomainInlined(self::domainIdFromMeta($role->meta()))),
+            default => Spec::andX(),
+        };
     }
 
     public static function domainIdFromMeta(array $meta): string

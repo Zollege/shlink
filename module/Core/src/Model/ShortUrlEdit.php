@@ -29,7 +29,11 @@ final class ShortUrlEdit implements TitleResolutionModelInterface
     private bool $titlePropWasProvided = false;
     private ?string $title = null;
     private bool $titleWasAutoResolved = false;
-    private ?bool $validateUrl = null;
+    private bool $validateUrl = false;
+    private bool $crawlablePropWasProvided = false;
+    private bool $crawlable = false;
+    private bool $forwardQueryPropWasProvided = false;
+    private bool $forwardQuery = true;
 
     private function __construct()
     {
@@ -61,14 +65,18 @@ final class ShortUrlEdit implements TitleResolutionModelInterface
         $this->maxVisitsPropWasProvided = array_key_exists(ShortUrlInputFilter::MAX_VISITS, $data);
         $this->tagsPropWasProvided = array_key_exists(ShortUrlInputFilter::TAGS, $data);
         $this->titlePropWasProvided = array_key_exists(ShortUrlInputFilter::TITLE, $data);
+        $this->crawlablePropWasProvided = array_key_exists(ShortUrlInputFilter::CRAWLABLE, $data);
+        $this->forwardQueryPropWasProvided = array_key_exists(ShortUrlInputFilter::FORWARD_QUERY, $data);
 
         $this->longUrl = $inputFilter->getValue(ShortUrlInputFilter::LONG_URL);
         $this->validSince = parseDateField($inputFilter->getValue(ShortUrlInputFilter::VALID_SINCE));
         $this->validUntil = parseDateField($inputFilter->getValue(ShortUrlInputFilter::VALID_UNTIL));
         $this->maxVisits = getOptionalIntFromInputFilter($inputFilter, ShortUrlInputFilter::MAX_VISITS);
-        $this->validateUrl = getOptionalBoolFromInputFilter($inputFilter, ShortUrlInputFilter::VALIDATE_URL);
+        $this->validateUrl = getOptionalBoolFromInputFilter($inputFilter, ShortUrlInputFilter::VALIDATE_URL) ?? false;
         $this->tags = $inputFilter->getValue(ShortUrlInputFilter::TAGS);
         $this->title = $inputFilter->getValue(ShortUrlInputFilter::TITLE);
+        $this->crawlable = $inputFilter->getValue(ShortUrlInputFilter::CRAWLABLE);
+        $this->forwardQuery = getOptionalBoolFromInputFilter($inputFilter, ShortUrlInputFilter::FORWARD_QUERY) ?? true;
     }
 
     public function longUrl(): ?string
@@ -158,8 +166,28 @@ final class ShortUrlEdit implements TitleResolutionModelInterface
         return $copy;
     }
 
-    public function doValidateUrl(): ?bool
+    public function doValidateUrl(): bool
     {
         return $this->validateUrl;
+    }
+
+    public function crawlable(): bool
+    {
+        return $this->crawlable;
+    }
+
+    public function crawlableWasProvided(): bool
+    {
+        return $this->crawlablePropWasProvided;
+    }
+
+    public function forwardQuery(): bool
+    {
+        return $this->forwardQuery;
+    }
+
+    public function forwardQueryWasProvided(): bool
+    {
+        return $this->forwardQueryPropWasProvided;
     }
 }

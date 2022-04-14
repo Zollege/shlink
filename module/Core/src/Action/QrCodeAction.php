@@ -4,38 +4,28 @@ declare(strict_types=1);
 
 namespace Shlinkio\Shlink\Core\Action;
 
-use Endroid\QrCode\QrCode;
-use Endroid\QrCode\Writer\SvgWriter;
+use Endroid\QrCode\Builder\Builder;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
-use Psr\Log\NullLogger;
 use Shlinkio\Shlink\Common\Response\QrCodeResponse;
+use Shlinkio\Shlink\Core\Action\Model\QrCodeParams;
 use Shlinkio\Shlink\Core\Exception\ShortUrlNotFoundException;
 use Shlinkio\Shlink\Core\Model\ShortUrlIdentifier;
+use Shlinkio\Shlink\Core\Options\QrCodeOptions;
 use Shlinkio\Shlink\Core\Service\ShortUrl\ShortUrlResolverInterface;
 use Shlinkio\Shlink\Core\ShortUrl\Helper\ShortUrlStringifierInterface;
 
 class QrCodeAction implements MiddlewareInterface
 {
-    private const DEFAULT_SIZE = 300;
-    private const MIN_SIZE = 50;
-    private const MAX_SIZE = 1000;
-
-    private ShortUrlResolverInterface $urlResolver;
-    private ShortUrlStringifierInterface $stringifier;
-    private LoggerInterface $logger;
-
     public function __construct(
-        ShortUrlResolverInterface $urlResolver,
-        ShortUrlStringifierInterface $stringifier,
-        ?LoggerInterface $logger = null
+        private ShortUrlResolverInterface $urlResolver,
+        private ShortUrlStringifierInterface $stringifier,
+        private LoggerInterface $logger,
+        private QrCodeOptions $defaultOptions,
     ) {
-        $this->urlResolver = $urlResolver;
-        $this->logger = $logger ?? new NullLogger();
-        $this->stringifier = $stringifier;
     }
 
     public function process(Request $request, RequestHandlerInterface $handler): Response
@@ -49,42 +39,15 @@ class QrCodeAction implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        $query = $request->getQueryParams();
-        $qrCode = new QrCode($this->stringifier->stringify($shortUrl));
-        $qrCode->setSize($this->resolveSize($request, $query));
-        $qrCode->setMargin($this->resolveMargin($query));
+        $params = QrCodeParams::fromRequest($request, $this->defaultOptions);
+        $qrCodeBuilder = Builder::create()
+            ->data($this->stringifier->stringify($shortUrl))
+            ->size($params->size())
+            ->margin($params->margin())
+            ->writer($params->writer())
+            ->errorCorrectionLevel($params->errorCorrectionLevel())
+            ->roundBlockSizeMode($params->roundBlockSizeMode());
 
-        $format = $query['format'] ?? 'png';
-        if ($format === 'svg') {
-            $qrCode->setWriter(new SvgWriter());
-        }
-
-        return new QrCodeResponse($qrCode);
-    }
-
-    private function resolveSize(Request $request, array $query): int
-    {
-        // Size attribute is deprecated. After v3.0.0, always use the query param instead
-        $size = (int) $request->getAttribute('size', $query['size'] ?? self::DEFAULT_SIZE);
-        if ($size < self::MIN_SIZE) {
-            return self::MIN_SIZE;
-        }
-
-        return $size > self::MAX_SIZE ? self::MAX_SIZE : $size;
-    }
-
-    private function resolveMargin(array $query): int
-    {
-        if (! isset($query['margin'])) {
-            return 0;
-        }
-
-        $margin = $query['margin'];
-        $intMargin = (int) $margin;
-        if ($margin !== (string) $intMargin) {
-            return 0;
-        }
-
-        return $intMargin < 0 ? 0 : $intMargin;
+        return new QrCodeResponse($qrCodeBuilder->build());
     }
 }

@@ -15,7 +15,7 @@ use Shlinkio\Shlink\Core\Options\UrlShortenerOptions;
 use function preg_match;
 use function trim;
 
-use const Shlinkio\Shlink\Core\TITLE_TAG_VALUE;
+use const Shlinkio\Shlink\TITLE_TAG_VALUE;
 
 class UrlValidator implements UrlValidatorInterface, RequestMethodInterface
 {
@@ -23,22 +23,15 @@ class UrlValidator implements UrlValidatorInterface, RequestMethodInterface
     private const CHROME_USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) '
         . 'Chrome/51.0.2704.103 Safari/537.36';
 
-    private ClientInterface $httpClient;
-    private UrlShortenerOptions $options;
-
-    public function __construct(ClientInterface $httpClient, UrlShortenerOptions $options)
+    public function __construct(private ClientInterface $httpClient, private UrlShortenerOptions $options)
     {
-        $this->httpClient = $httpClient;
-        $this->options = $options;
     }
 
     /**
      * @throws InvalidUrlException
      */
-    public function validateUrl(string $url, ?bool $doValidate): void
+    public function validateUrl(string $url, bool $doValidate): void
     {
-        // If the URL validation is not enabled or it was explicitly set to not validate, skip check
-        $doValidate = $doValidate ?? $this->options->isUrlValidationEnabled();
         if (! $doValidate) {
             return;
         }
@@ -46,15 +39,14 @@ class UrlValidator implements UrlValidatorInterface, RequestMethodInterface
         $this->validateUrlAndGetResponse($url, true);
     }
 
-    public function validateUrlWithTitle(string $url, ?bool $doValidate): ?string
+    public function validateUrlWithTitle(string $url, bool $doValidate): ?string
     {
-        $doValidate = $doValidate ?? $this->options->isUrlValidationEnabled();
         if (! $doValidate && ! $this->options->autoResolveTitles()) {
             return null;
         }
 
         $response = $this->validateUrlAndGetResponse($url, $doValidate);
-        if ($response === null) {
+        if ($response === null || ! $this->options->autoResolveTitles()) {
             return null;
         }
 

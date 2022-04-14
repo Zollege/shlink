@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace ShlinkMigrations;
 
+use Doctrine\DBAL\Exception;
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
@@ -36,6 +38,9 @@ final class Version20200110182849 extends AbstractMigration
         );
     }
 
+    /**
+     * @throws Exception
+     */
     public function setDefaultValueForColumnInTable(string $tableName, string $columnName): void
     {
         $qb = $this->connection->createQueryBuilder();
@@ -43,7 +48,7 @@ final class Version20200110182849 extends AbstractMigration
            ->set($columnName, ':emptyValue')
            ->setParameter('emptyValue', self::DEFAULT_EMPTY_VALUE)
            ->where($qb->expr()->isNull($columnName))
-           ->execute();
+           ->executeStatement();
     }
 
     public function down(Schema $schema): void
@@ -51,11 +56,8 @@ final class Version20200110182849 extends AbstractMigration
         // No need (and no way) to undo this migration
     }
 
-    /**
-     * @fixme Workaround for https://github.com/doctrine/migrations/issues/1104
-     */
     public function isTransactional(): bool
     {
-        return false;
+        return ! ($this->connection->getDatabasePlatform() instanceof MySQLPlatform);
     }
 }

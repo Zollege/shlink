@@ -13,11 +13,8 @@ use function Functional\invoke_if;
 
 class ShortUrlDataTransformer implements DataTransformerInterface
 {
-    private ShortUrlStringifierInterface $stringifier;
-
-    public function __construct(ShortUrlStringifierInterface $stringifier)
+    public function __construct(private ShortUrlStringifierInterface $stringifier)
     {
-        $this->stringifier = $stringifier;
     }
 
     /**
@@ -34,7 +31,9 @@ class ShortUrlDataTransformer implements DataTransformerInterface
             'tags' => invoke($shortUrl->getTags(), '__toString'),
             'meta' => $this->buildMeta($shortUrl),
             'domain' => $shortUrl->getDomain(),
-            'title' => $shortUrl->getTitle(),
+            'title' => $shortUrl->title(),
+            'crawlable' => $shortUrl->crawlable(),
+            'forwardQuery' => $shortUrl->forwardQuery(),
         ];
     }
 

@@ -9,7 +9,7 @@ use Laminas\ServiceManager\Factory\InvokableFactory;
 use Mezzio\Router\Middleware\ImplicitOptionsMiddleware;
 use Shlinkio\Shlink\Common\Mercure\LcobucciJwtProvider;
 use Shlinkio\Shlink\Core\Domain\DomainService;
-use Shlinkio\Shlink\Core\Options\AppOptions;
+use Shlinkio\Shlink\Core\Options;
 use Shlinkio\Shlink\Core\Service;
 use Shlinkio\Shlink\Core\ShortUrl\Transformer\ShortUrlDataTransformer;
 use Shlinkio\Shlink\Core\Tag\TagService;
@@ -30,16 +30,17 @@ return [
             Action\ShortUrl\DeleteShortUrlAction::class => ConfigAbstractFactory::class,
             Action\ShortUrl\ResolveShortUrlAction::class => ConfigAbstractFactory::class,
             Action\ShortUrl\ListShortUrlsAction::class => ConfigAbstractFactory::class,
-            Action\ShortUrl\EditShortUrlTagsAction::class => ConfigAbstractFactory::class,
             Action\Visit\ShortUrlVisitsAction::class => ConfigAbstractFactory::class,
             Action\Visit\TagVisitsAction::class => ConfigAbstractFactory::class,
             Action\Visit\GlobalVisitsAction::class => ConfigAbstractFactory::class,
             Action\Visit\OrphanVisitsAction::class => ConfigAbstractFactory::class,
+            Action\Visit\NonOrphanVisitsAction::class => ConfigAbstractFactory::class,
             Action\Tag\ListTagsAction::class => ConfigAbstractFactory::class,
+            Action\Tag\TagsStatsAction::class => ConfigAbstractFactory::class,
             Action\Tag\DeleteTagsAction::class => ConfigAbstractFactory::class,
-            Action\Tag\CreateTagsAction::class => ConfigAbstractFactory::class,
             Action\Tag\UpdateTagAction::class => ConfigAbstractFactory::class,
             Action\Domain\ListDomainsAction::class => ConfigAbstractFactory::class,
+            Action\Domain\DomainRedirectsAction::class => ConfigAbstractFactory::class,
 
             ImplicitOptionsMiddleware::class => Middleware\EmptyResponseImplicitOptionsMiddlewareFactory::class,
             Middleware\BodyParserMiddleware::class => InvokableFactory::class,
@@ -54,7 +55,7 @@ return [
     ConfigAbstractFactory::class => [
         ApiKeyService::class => ['em'],
 
-        Action\HealthAction::class => ['em', AppOptions::class],
+        Action\HealthAction::class => ['em', Options\AppOptions::class],
         Action\MercureInfoAction::class => [LcobucciJwtProvider::class, 'config.mercure'],
         Action\ShortUrl\CreateShortUrlAction::class => [Service\UrlShortener::class, ShortUrlDataTransformer::class],
         Action\ShortUrl\SingleStepCreateShortUrlAction::class => [
@@ -74,13 +75,14 @@ return [
             Visit\VisitsStatsHelper::class,
             Visit\Transformer\OrphanVisitDataTransformer::class,
         ],
+        Action\Visit\NonOrphanVisitsAction::class => [Visit\VisitsStatsHelper::class],
         Action\ShortUrl\ListShortUrlsAction::class => [Service\ShortUrlService::class, ShortUrlDataTransformer::class],
-        Action\ShortUrl\EditShortUrlTagsAction::class => [Service\ShortUrlService::class],
         Action\Tag\ListTagsAction::class => [TagService::class],
+        Action\Tag\TagsStatsAction::class => [TagService::class],
         Action\Tag\DeleteTagsAction::class => [TagService::class],
-        Action\Tag\CreateTagsAction::class => [TagService::class],
         Action\Tag\UpdateTagAction::class => [TagService::class],
-        Action\Domain\ListDomainsAction::class => [DomainService::class],
+        Action\Domain\ListDomainsAction::class => [DomainService::class, Options\NotFoundRedirectOptions::class],
+        Action\Domain\DomainRedirectsAction::class => [DomainService::class],
 
         Middleware\CrossDomainMiddleware::class => ['config.cors'],
         Middleware\ShortUrl\DropDefaultDomainFromRequestMiddleware::class => ['config.url_shortener.domain.hostname'],

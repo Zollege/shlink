@@ -7,6 +7,7 @@ namespace Shlinkio\Shlink\Rest\Service;
 use Cake\Chronos\Chronos;
 use Doctrine\ORM\EntityManagerInterface;
 use Shlinkio\Shlink\Common\Exception\InvalidArgumentException;
+use Shlinkio\Shlink\Rest\ApiKey\Model\ApiKeyMeta;
 use Shlinkio\Shlink\Rest\ApiKey\Model\RoleDefinition;
 use Shlinkio\Shlink\Rest\Entity\ApiKey;
 
@@ -14,16 +15,16 @@ use function sprintf;
 
 class ApiKeyService implements ApiKeyServiceInterface
 {
-    private EntityManagerInterface $em;
-
-    public function __construct(EntityManagerInterface $em)
+    public function __construct(private EntityManagerInterface $em)
     {
-        $this->em = $em;
     }
 
-    public function create(?Chronos $expirationDate = null, RoleDefinition ...$roleDefinitions): ApiKey
-    {
-        $key = new ApiKey($expirationDate);
+    public function create(
+        ?Chronos $expirationDate = null,
+        ?string $name = null,
+        RoleDefinition ...$roleDefinitions,
+    ): ApiKey {
+        $key = $this->buildApiKeyWithParams($expirationDate, $name);
         foreach ($roleDefinitions as $definition) {
             $key->registerRole($definition);
         }
@@ -32,6 +33,18 @@ class ApiKeyService implements ApiKeyServiceInterface
         $this->em->flush();
 
         return $key;
+    }
+
+    private function buildApiKeyWithParams(?Chronos $expirationDate, ?string $name): ApiKey
+    {
+        return match (true) {
+            $expirationDate !== null && $name !== null => ApiKey::fromMeta(
+                ApiKeyMeta::withNameAndExpirationDate($name, $expirationDate),
+            ),
+            $expirationDate !== null => ApiKey::fromMeta(ApiKeyMeta::withExpirationDate($expirationDate)),
+            $name !== null => ApiKey::fromMeta(ApiKeyMeta::withName($name)),
+            default => ApiKey::create(),
+        };
     }
 
     public function check(string $key): ApiKeyCheckResult

@@ -9,8 +9,11 @@ use Laminas\Diactoros\ServerRequestFactory;
 use PHPUnit\Framework\TestCase;
 use Prophecy\PhpUnit\ProphecyTrait;
 use Prophecy\Prophecy\ObjectProphecy;
+use Shlinkio\Shlink\Core\Config\NotFoundRedirects;
 use Shlinkio\Shlink\Core\Domain\DomainServiceInterface;
 use Shlinkio\Shlink\Core\Domain\Model\DomainItem;
+use Shlinkio\Shlink\Core\Entity\Domain;
+use Shlinkio\Shlink\Core\Options\NotFoundRedirectOptions;
 use Shlinkio\Shlink\Rest\Action\Domain\ListDomainsAction;
 use Shlinkio\Shlink\Rest\Entity\ApiKey;
 
@@ -20,20 +23,22 @@ class ListDomainsActionTest extends TestCase
 
     private ListDomainsAction $action;
     private ObjectProphecy $domainService;
+    private NotFoundRedirectOptions $options;
 
     public function setUp(): void
     {
         $this->domainService = $this->prophesize(DomainServiceInterface::class);
-        $this->action = new ListDomainsAction($this->domainService->reveal());
+        $this->options = new NotFoundRedirectOptions();
+        $this->action = new ListDomainsAction($this->domainService->reveal(), $this->options);
     }
 
     /** @test */
     public function domainsAreProperlyListed(): void
     {
-        $apiKey = new ApiKey();
+        $apiKey = ApiKey::create();
         $domains = [
-            new DomainItem('bar.com', true),
-            new DomainItem('baz.com', false),
+            DomainItem::forDefaultDomain('bar.com', new NotFoundRedirectOptions()),
+            DomainItem::forNonDefaultDomain(Domain::withAuthority('baz.com')),
         ];
         $listDomains = $this->domainService->listDomains($apiKey)->willReturn($domains);
 
@@ -44,6 +49,7 @@ class ListDomainsActionTest extends TestCase
         self::assertEquals([
             'domains' => [
                 'data' => $domains,
+                'defaultRedirects' => NotFoundRedirects::fromConfig($this->options),
             ],
         ], $payload);
         $listDomains->shouldHaveBeenCalledOnce();
